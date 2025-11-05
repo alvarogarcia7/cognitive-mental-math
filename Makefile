@@ -50,6 +50,12 @@ clippy: ## Run clippy linter
 	@cargo clippy -- -D warnings
 .PHONY: clippy
 
+
+clippy-fix: ## Run clippy fix
+	@echo "Running clippy fix..."
+	@cargo clippy --fix
+.PHONY: clippy-fix
+
 check: fmt-check clippy test ## Run all checks (fmt-check + clippy + test)
 	@echo "✅ All checks passed!"
 .PHONY: check
