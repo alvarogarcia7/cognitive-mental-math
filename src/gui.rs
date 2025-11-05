@@ -142,15 +142,7 @@ impl eframe::App for MemoryPracticeApp {
                             self.current_question_index + 1,
                             self.questions.len()
                         ));
-                        ui.add_space(10.0);
-
-                        // Display elapsed time
-                        if let Some(start_time) = self.question_start_time {
-                            let elapsed = start_time.elapsed().as_secs_f64();
-                            ui.label(format!("Time: {:.1}s", elapsed));
-                            ctx.request_repaint(); // Keep updating the timer
-                        }
-                        ui.add_space(10.0);
+                        ui.add_space(20.0);
 
                         // Display the question in large font
                         ui.heading(
