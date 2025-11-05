@@ -115,9 +115,11 @@ fn test_correct_and_incorrect_answers() {
 #[test]
 fn test_multiple_operations_with_answers() {
     let db = Database::new(":memory:").unwrap();
-    let operations = [Operation::new(OperationType::Addition, 5, 5),
+    let operations = [
+        Operation::new(OperationType::Addition, 5, 5),
         Operation::new(OperationType::Multiplication, 3, 4),
-        Operation::new(OperationType::Addition, 10, 15)];
+        Operation::new(OperationType::Addition, 10, 15),
+    ];
 
     let answers = [10, 12, 25];
     let times = [1.2, 2.5, 1.8];
