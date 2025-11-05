@@ -520,3 +520,115 @@ make pre-push    - Run pre-push checks (same as pre-commit, use with -j 2 for pa
 
 **Note:** The `-j 2` flag can be adjusted based on system resources. Higher values (e.g., `-j 4`) allow more parallel jobs but may not provide additional benefit due to cargo's internal parallelism.
 
+## 2025-11-05 16:02:41 AGB - Self-Documenting Makefile with AWK
+
+Convert the help in each make goal to the ## syntax, with awk to print it later.
+
+### Result
+
+Successfully converted the Makefile to use the self-documenting ## syntax pattern:
+
+**Before (Manual help target):**
+```makefile
+help:
+	@echo "Available targets:"
+	@echo "  make build       - Build the project"
+	@echo "  make test        - Run all tests"
+	@echo "  make run         - Run the application"
+	...
+.PHONY: help
+```
+
+**After (Self-documenting with ##):**
+```makefile
+help: ## Show this help message
+	@awk 'BEGIN {FS = ":.*##"; printf "Available targets:\n"} /^[a-zA-Z_-]+:.*##/ { printf "  make %-18s - %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+.PHONY: help
+
+build: ## Build the project
+	@echo "Building project..."
+	@cargo build --verbose
+.PHONY: build
+
+test: ## Run all tests
+	@echo "Running tests..."
+	@cargo test --quiet
+.PHONY: test
+```
+
+**How It Works:**
+
+1. **## Comments:** Each target has a `##` comment after the colon describing its purpose
+2. **AWK Parsing:** The awk script extracts targets with `##` comments and formats them
+3. **Field Separator:** `FS = ":.*##"` splits on the pattern between target name and description
+4. **Pattern Matching:** `/^[a-zA-Z_-]+:.*##/` finds lines with target definitions and ## comments
+5. **Formatted Output:** `printf "  make %-18s - %s\n"` formats the output with aligned columns
+
+**AWK Script Breakdown:**
+```awk
+BEGIN {FS = ":.*##"; printf "Available targets:\n"}  # Set field separator, print header
+/^[a-zA-Z_-]+:.*##/                                  # Match target lines with ##
+{ printf "  make %-18s - %s\n", $$1, $$2 }          # Format: target (left-aligned 18 chars) - description
+```
+
+**Benefits:**
+
+1. **Self-Documenting:** Help text is next to each target definition
+2. **Maintainable:** Add/remove targets without updating separate help section
+3. **DRY Principle:** No duplication between target name and help text
+4. **Automatic:** New targets with ## comments automatically appear in help
+5. **Standard Pattern:** Widely used convention in Makefiles
+
+**All Documented Targets:**
+
+- `help` - Show this help message
+- `build` - Build the project
+- `test` - Run all tests
+- `run` - Run the application
+- `clean` - Clean build artifacts
+- `build_and_test` - Build and run tests
+- `pre-commit` - Run pre-commit checks (build + test + fmt-check + clippy)
+- `pre-push` - Run pre-push checks (use with -j 2 for parallel execution)
+- `fmt` - Format code
+- `fmt-check` - Check code formatting
+- `clippy` - Run clippy linter
+- `check` - Run all checks (fmt-check + clippy + test)
+- `install-hooks` - Install git hooks
+
+**Output Example:**
+```
+$ make help
+Available targets:
+  make help               -  Show this help message
+  make build              -  Build the project
+  make test               -  Run all tests
+  make run                -  Run the application
+  make clean              -  Clean build artifacts
+  make build_and_test     -  Build and run tests
+  make pre-commit         -  Run pre-commit checks (build + test + fmt-check + clippy)
+  make pre-push           -  Run pre-push checks (use with -j 2 for parallel execution)
+  make fmt                -  Format code
+  make fmt-check          -  Check code formatting
+  make clippy             -  Run clippy linter
+  make check              -  Run all checks (fmt-check + clippy + test)
+  make install-hooks      -  Install git hooks
+```
+
+**Testing:**
+- ✅ `make help` displays all targets with descriptions
+- ✅ `make` (default target) shows help
+- ✅ All individual targets still work correctly
+- ✅ Format is clean and aligned
+- ✅ Easy to add new targets with ## comments
+
+**Developer Experience:**
+
+Adding a new target is now simpler:
+```makefile
+new-target: dependency1 dependency2 ## Description of new target
+	@commands here
+.PHONY: new-target
+```
+
+The help text is automatically extracted and displayed, no need to update a separate help section!
+
