@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# Pre-push hook: Do nothing
+exit 0
