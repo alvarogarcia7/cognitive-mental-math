@@ -199,3 +199,71 @@ Successfully implemented GitHub Actions CI/CD workflow for automated testing and
 - All dependencies properly configured
 - Ready to run on first push to GitHub
 
+## 2025-11-05 15:40:31 AGB - Makefile Integration for Pre-commit Hooks
+
+Move the checks in the pre-commit file to a Makefile. Execute the make goal from the pre-commit.
+
+### Result
+
+Successfully created a comprehensive Makefile and integrated it with the pre-commit hook:
+
+**Makefile Created** with the following targets:
+
+- `make help` - Display available targets
+- `make build` - Build the project with verbose output
+- `make test` - Run all tests quietly
+- `make run` - Run the application
+- `make clean` - Clean build artifacts
+- **`make pre-commit`** - Run pre-commit checks (build + test)
+- `make fmt` - Format code
+- `make fmt-check` - Check code formatting
+- `make clippy` - Run clippy linter with strict warnings
+- `make check` - Run all checks (fmt-check + clippy + test)
+- `make install-hooks` - Install git hooks
+
+**Pre-commit Hook Updated**
+
+Changed from direct cargo commands to:
+```bash
+make pre-commit
+```
+
+This now executes the `pre-commit` target which:
+1. Builds the project (`make build`)
+2. Runs all tests (`make test`)
+3. Reports success/failure
+
+**Benefits:**
+
+1. **Centralized Commands:** All common development tasks in one place
+2. **Consistency:** Same commands work locally and in hooks
+3. **Maintainability:** Easier to update checks in one location
+4. **Extensibility:** Easy to add more checks to pre-commit target
+5. **Developer Experience:** Simple, memorable commands (`make test`, `make build`)
+6. **Documentation:** `make help` shows all available commands
+
+**Example Usage:**
+```bash
+# Run pre-commit checks manually
+make pre-commit
+
+# Run all quality checks
+make check
+
+# Format code
+make fmt
+
+# Build and run
+make build && make run
+```
+
+**Testing:**
+- ✅ All Makefile targets tested and working
+- ✅ Pre-commit hook successfully calls `make pre-commit`
+- ✅ Hook runs build and all 38 tests before each commit
+- ✅ Clear success message displayed after passing checks
+- ✅ Hooks reinstalled with `./install-hooks.sh`
+
+**CI/CD Integration:**
+The Makefile targets can also be used in GitHub Actions and other CI systems for consistency between local and remote environments.
+
