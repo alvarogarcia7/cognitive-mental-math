@@ -1,8 +1,5 @@
-mod database;
-mod gui;
-mod operations;
-
-use database::Database;
+use memory_practice::database::Database;
+use memory_practice::gui;
 use std::sync::Arc;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

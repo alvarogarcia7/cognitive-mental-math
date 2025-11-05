@@ -15,15 +15,15 @@ pub struct MemoryPracticeApp {
 }
 
 #[derive(Debug, Clone)]
-struct QuestionResult {
-    operation: Operation,
-    user_answer: i32,
-    is_correct: bool,
-    time_spent: f64,
+pub struct QuestionResult {
+    pub operation: Operation,
+    pub user_answer: i32,
+    pub is_correct: bool,
+    pub time_spent: f64,
 }
 
 #[derive(Debug, PartialEq)]
-enum AppState {
+pub enum AppState {
     ShowingQuestions,
     ShowingResults,
 }
@@ -100,6 +100,29 @@ impl MemoryPracticeApp {
         self.question_start_time = Some(Instant::now());
         self.results.clear();
         self.state = AppState::ShowingQuestions;
+    }
+
+    // Helper methods for testing
+    pub fn get_current_state(&self) -> &AppState {
+        &self.state
+    }
+
+    pub fn get_current_question_index(&self) -> usize {
+        self.current_question_index
+    }
+
+    pub fn get_results(&self) -> &[QuestionResult] {
+        &self.results
+    }
+
+    pub fn set_answer(&mut self, index: usize, answer: String) {
+        if index < self.user_answers.len() {
+            self.user_answers[index] = answer;
+        }
+    }
+
+    pub fn submit_answer(&mut self) {
+        self.submit_current_answer();
     }
 }
 
