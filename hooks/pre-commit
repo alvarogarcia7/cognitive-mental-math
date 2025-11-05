@@ -1,15 +1,14 @@
 #!/bin/bash
 
-# Pre-commit hook: Compile and run tests
+# Pre-commit hook: Run pre-commit checks via Makefile
 echo "Running pre-commit hook..."
-echo "Compiling and running tests..."
 
-# Run cargo test
-if ! cargo test --quiet; then
-    echo "❌ Tests failed! Commit aborted."
-    echo "Please fix the failing tests before committing."
+# Run make pre-commit (build + test)
+if ! make pre-commit; then
+    echo ""
+    echo "❌ Pre-commit checks failed! Commit aborted."
+    echo "Please fix the issues before committing."
     exit 1
 fi
 
-echo "✅ All tests passed! Proceeding with commit."
 exit 0
