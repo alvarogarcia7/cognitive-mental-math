@@ -8,7 +8,7 @@ build: ## Build the project
 	@cargo build --verbose
 .PHONY: build
 
-test: ## Run all tests
+test: build ## Run all tests
 	@echo "Running tests..."
 	@cargo test --quiet
 .PHONY: test
