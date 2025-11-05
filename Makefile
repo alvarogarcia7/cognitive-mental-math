@@ -5,7 +5,8 @@ help:
 	@echo "  make test        - Run all tests"
 	@echo "  make run         - Run the application"
 	@echo "  make clean       - Clean build artifacts"
-	@echo "  make pre-commit  - Run pre-commit checks (build + test)"
+	@echo "  make pre-commit  - Run pre-commit checks (build + test + fmt-check + clippy)"
+	@echo "  make pre-push    - Run pre-push checks (currently does nothing)"
 	@echo "  make fmt         - Format code"
 	@echo "  make clippy      - Run clippy linter"
 	@echo "  make check       - Run all checks (fmt + clippy + test)"
@@ -39,6 +40,12 @@ clean:
 pre-commit: build test fmt-check clippy
 	@echo "✅ Pre-commit checks passed!"
 .PHONY: pre-commit
+
+# Pre-push checks: placeholder for future checks
+pre-push:
+	@echo "Running pre-push checks..."
+	@echo "✅ Pre-push checks passed!"
+.PHONY: pre-push
 
 # Format code
 fmt:
