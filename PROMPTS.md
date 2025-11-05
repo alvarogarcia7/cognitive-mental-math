@@ -431,3 +431,92 @@ This provides a foundation for adding more comprehensive checks at push time if 
 3. **Maintainability:** All build/test logic centralized in Makefile
 4. **Developer Experience:** Clear feedback at both commit and push stages
 
+## 2025-11-05 15:56:20 AGB - Parallel Execution for Pre-push
+
+Execute the pre-push dependencies with -j 2 (to execute in parallel).
+
+### Result
+
+Successfully enhanced pre-push target with parallel execution capabilities:
+
+**Makefile Changes:**
+
+**Before:**
+```makefile
+# Pre-push checks: placeholder for future checks
+pre-push:
+	@echo "Running pre-push checks..."
+	@echo "✅ Pre-push checks passed!"
+.PHONY: pre-push
+```
+
+**After:**
+```makefile
+# Pre-push checks: run all checks in parallel
+pre-push: build test fmt-check clippy
+	@echo "✅ Pre-push checks passed!"
+.PHONY: pre-push
+```
+
+**Pre-push Hook Updated:**
+
+Changed from:
+```bash
+if ! make pre-push; then
+```
+
+To:
+```bash
+if ! make -j 2 pre-push; then
+```
+
+**How Parallel Execution Works:**
+
+The `-j 2` flag tells make to run up to 2 jobs in parallel. With the dependencies `build test fmt-check clippy`, make will:
+
+1. Start up to 2 independent tasks simultaneously
+2. Respect implicit dependencies (cargo handles build-before-test internally)
+3. Run tasks like `fmt-check` and `clippy` in parallel with other tasks
+4. Use cargo's file locking to prevent conflicts
+
+**Observable Behavior:**
+
+When running `make -j 2 pre-push`, you'll see:
+- Multiple tasks starting simultaneously
+- "Blocking waiting for file lock" messages (cargo managing parallel access)
+- Faster overall execution time
+- Output interleaved from parallel tasks
+
+**Example Output:**
+```
+Running pre-push hook...
+Building project...
+Running tests...
+    Blocking waiting for file lock on package cache
+```
+
+Notice both "Building project..." and "Running tests..." appear before any compilation output, indicating parallel execution.
+
+**Performance Benefits:**
+
+- **Faster Execution:** Independent checks run simultaneously
+- **Efficient Resource Usage:** Utilizes multiple CPU cores
+- **Cargo Safety:** File locking prevents build conflicts
+- **Flexible:** Can adjust `-j N` for different levels of parallelism
+
+**Help Message Updated:**
+
+```
+make pre-push    - Run pre-push checks (same as pre-commit, use with -j 2 for parallel)
+```
+
+**Testing:**
+- ✅ `make -j 2 pre-push` executes with parallel jobs
+- ✅ Pre-push hook uses parallel execution automatically
+- ✅ Cargo file locking prevents conflicts
+- ✅ All checks still pass correctly
+- ✅ Observable performance improvement with parallel execution
+- ✅ Hooks reinstalled successfully
+
+**Note:** The `-j 2` flag can be adjusted based on system resources. Higher values (e.g., `-j 4`) allow more parallel jobs but may not provide additional benefit due to cargo's internal parallelism.
+
