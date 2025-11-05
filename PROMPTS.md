@@ -267,3 +267,84 @@ make build && make run
 **CI/CD Integration:**
 The Makefile targets can also be used in GitHub Actions and other CI systems for consistency between local and remote environments.
 
+## 2025-11-05 15:45:34 AGB - Makefile Refactoring and Code Quality
+
+Refactor the makefile so that the .PHONY marker is after each goal, instead of one .PHONY line with all goals. Also add fmt-check and clippy to pre-commit target.
+
+### Result
+
+Successfully refactored the Makefile structure and enhanced pre-commit checks:
+
+**Makefile Structure Changes:**
+
+**Before:**
+```makefile
+.PHONY: help build test clean run pre-commit fmt clippy check
+
+help:
+    ...
+
+build:
+    ...
+```
+
+**After:**
+```makefile
+help:
+    ...
+.PHONY: help
+
+build:
+    ...
+.PHONY: build
+```
+
+**Benefits of New Structure:**
+1. **Better Organization:** Each target is self-contained with its .PHONY declaration
+2. **Easier to Read:** Clear which targets are phony when reading each target
+3. **Maintainability:** Adding new targets doesn't require updating a central .PHONY list
+4. **Standard Practice:** Follows common Makefile conventions
+
+**Enhanced Pre-commit Checks:**
+
+Updated `pre-commit` target to include:
+- `build` - Compile the project
+- `test` - Run all 38 tests
+- `fmt-check` - Verify code formatting
+- `clippy` - Run linter with strict warnings (-D warnings)
+
+This ensures code quality and consistency before each commit.
+
+**Code Quality Fixes:**
+
+To support the stricter clippy checks, fixed several issues:
+
+1. **Display Trait Implementation** (src/operations.rs)
+   - Replaced inherent `to_string()` method with `fmt::Display` trait implementation
+   - Clippy warning: `inherent_to_string` should use Display trait
+
+2. **Boolean Comparison** (src/gui.rs:171)
+   - Changed `response.lost_focus() == false` to `!response.lost_focus()`
+   - Clippy warning: `bool_comparison` can be simplified with negation
+
+3. **Borrowed Array Expressions** (src/database.rs:48, 62)
+   - Removed unnecessary `&` from array literals
+   - Changed `&[...]` to `[...]` where the borrow was redundant
+   - Clippy warning: `needless_borrow` on array literals
+
+4. **Arc with Non-Send/Sync** (src/main.rs:7)
+   - Added `#[allow(clippy::arc_with_non_send_sync)]` attribute
+   - Rationale: Single-threaded GUI app doesn't actually send Arc across threads
+   - Clippy warning: `arc_with_non_send_sync` for Database type
+
+**Testing:**
+- ✅ All Makefile targets work with new .PHONY structure
+- ✅ `make pre-commit` now runs build, test, fmt-check, and clippy
+- ✅ All 38 tests pass
+- ✅ Code formatting validated
+- ✅ Clippy passes with `-D warnings` (strict mode)
+- ✅ Pre-commit hook successfully executes enhanced checks
+
+**Result:**
+The codebase now has stricter quality enforcement at commit time, catching formatting issues, linter warnings, and test failures before code is committed.
+

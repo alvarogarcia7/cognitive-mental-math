@@ -1,5 +1,5 @@
 use crate::database::Database;
-use crate::operations::{generate_question_block, Operation};
+use crate::operations::{Operation, generate_question_block};
 use eframe::egui;
 use std::sync::Arc;
 use std::time::Instant;
@@ -168,7 +168,7 @@ impl eframe::App for MemoryPracticeApp {
                             );
 
                             // Auto-focus the text input
-                            if self.current_question_index == 0 && response.lost_focus() == false {
+                            if self.current_question_index == 0 && !response.lost_focus() {
                                 response.request_focus();
                             }
 
@@ -193,8 +193,8 @@ impl eframe::App for MemoryPracticeApp {
 
                     let correct_count = self.results.iter().filter(|r| r.is_correct).count();
                     let total = self.results.len();
-                    let average_time = self.results.iter().map(|r| r.time_spent).sum::<f64>()
-                        / total as f64;
+                    let average_time =
+                        self.results.iter().map(|r| r.time_spent).sum::<f64>() / total as f64;
 
                     ui.label(format!("Score: {}/{}", correct_count, total));
                     ui.label(format!("Average time: {:.2}s", average_time));
@@ -215,9 +215,7 @@ impl eframe::App for MemoryPracticeApp {
                                 ui.label(result.operation.to_string().replace("?", ""));
                                 ui.label(result.operation.result.to_string());
                                 ui.label(format!("(Your answer: {})", result.user_answer));
-                                ui.label(
-                                    egui::RichText::new(status).color(color).strong(),
-                                );
+                                ui.label(egui::RichText::new(status).color(color).strong());
                                 ui.label(format!("{:.2}s", result.time_spent));
                             });
                         }

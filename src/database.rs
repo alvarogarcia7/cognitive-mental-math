@@ -45,7 +45,7 @@ impl Database {
     ) -> Result<i64> {
         self.conn.execute(
             "INSERT INTO operations (operation_type, operand1, operand2, result) VALUES (?1, ?2, ?3, ?4)",
-            &[operation_type, &operand1.to_string(), &operand2.to_string(), &result.to_string()],
+            [operation_type, &operand1.to_string(), &operand2.to_string(), &result.to_string()],
         )?;
         Ok(self.conn.last_insert_rowid())
     }
@@ -59,7 +59,7 @@ impl Database {
     ) -> Result<()> {
         self.conn.execute(
             "INSERT INTO answers (operation_id, user_answer, is_correct, time_spent_seconds) VALUES (?1, ?2, ?3, ?4)",
-            &[
+            [
                 &operation_id.to_string(),
                 &user_answer.to_string(),
                 &(is_correct as i32).to_string(),
@@ -71,7 +71,7 @@ impl Database {
 
     pub fn get_operation(&self, operation_id: i64) -> Result<Option<OperationRecord>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, operation_type, operand1, operand2, result FROM operations WHERE id = ?1"
+            "SELECT id, operation_type, operand1, operand2, result FROM operations WHERE id = ?1",
         )?;
 
         let mut rows = stmt.query([operation_id])?;
@@ -110,20 +110,16 @@ impl Database {
     }
 
     pub fn count_operations(&self) -> Result<i64> {
-        let count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM operations",
-            [],
-            |row| row.get(0)
-        )?;
+        let count: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM operations", [], |row| row.get(0))?;
         Ok(count)
     }
 
     pub fn count_answers(&self) -> Result<i64> {
-        let count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM answers",
-            [],
-            |row| row.get(0)
-        )?;
+        let count: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM answers", [], |row| row.get(0))?;
         Ok(count)
     }
 }

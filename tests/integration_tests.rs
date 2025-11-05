@@ -1,5 +1,5 @@
 use memory_practice::database::Database;
-use memory_practice::operations::{generate_question_block, Operation, OperationType};
+use memory_practice::operations::{Operation, OperationType, generate_question_block};
 
 #[test]
 fn test_store_and_retrieve_operation() {

@@ -1,4 +1,5 @@
 use rand::Rng;
+use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum OperationType {
@@ -65,17 +66,20 @@ impl Operation {
         Operation::new(operation_type, operand1, operand2)
     }
 
-    pub fn to_string(&self) -> String {
-        format!(
+    pub fn check_answer(&self, answer: i32) -> bool {
+        self.result == answer
+    }
+}
+
+impl fmt::Display for Operation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
             "{} {} {} = ?",
             self.operand1,
             self.operation_type.symbol(),
             self.operand2
         )
-    }
-
-    pub fn check_answer(&self, answer: i32) -> bool {
-        self.result == answer
     }
 }
 
@@ -146,8 +150,14 @@ mod tests {
         // Generate many random operations to test range
         for _ in 0..100 {
             let op = Operation::generate_random();
-            assert!(op.operand1 >= 1 && op.operand1 < 100, "operand1 should be 1-99");
-            assert!(op.operand2 >= 1 && op.operand2 < 100, "operand2 should be 1-99");
+            assert!(
+                op.operand1 >= 1 && op.operand1 < 100,
+                "operand1 should be 1-99"
+            );
+            assert!(
+                op.operand2 >= 1 && op.operand2 < 100,
+                "operand2 should be 1-99"
+            );
         }
     }
 
