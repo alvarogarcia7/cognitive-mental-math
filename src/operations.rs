@@ -52,15 +52,21 @@ impl Operation {
     pub fn generate_random() -> Self {
         let mut rng = rand::thread_rng();
 
-        // Generate 1-2 digit numbers (1-99)
-        let operand1 = rng.gen_range(1..100);
-        let operand2 = rng.gen_range(1..100);
-
         // Randomly choose between addition and multiplication
-        let operation_type = if rng.gen_bool(0.5) {
-            OperationType::Addition
+        let (operation_type, operand1, operand2) = if rng.gen_bool(0.5) {
+            (
+                OperationType::Addition,
+                rng.gen_range(1..100),
+                rng.gen_range(1..100),
+            )
         } else {
-            OperationType::Multiplication
+            let operand1 = rng.gen_range(1..100);
+            let operand2 = if operand1 > 10 {
+                rng.gen_range(1..10)
+            } else {
+                rng.gen_range(1..100)
+            };
+            (OperationType::Multiplication, operand1, operand2)
         };
 
         Operation::new(operation_type, operand1, operand2)

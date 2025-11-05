@@ -29,8 +29,7 @@ pub enum AppState {
 }
 
 impl MemoryPracticeApp {
-    pub fn new(db: Arc<Database>) -> Self {
-        let questions = generate_question_block(10);
+    pub fn new(db: Arc<Database>, questions: Vec<Operation>) -> Self {
         let user_answers = vec![String::new(); 10];
 
         Self {
@@ -233,6 +232,11 @@ pub fn run_app(db: Arc<Database>) -> Result<(), eframe::Error> {
     eframe::run_native(
         "Memory Practice",
         options,
-        Box::new(|_cc| Ok(Box::new(MemoryPracticeApp::new(db)))),
+        Box::new(|_cc| {
+            Ok(Box::new(MemoryPracticeApp::new(
+                db,
+                generate_question_block(10),
+            )))
+        }),
     )
 }
