@@ -100,7 +100,7 @@ fn test_multiple_answers_in_sequence() {
     let db = Arc::new(Database::new(":memory:").unwrap());
     let mut app = MemoryPracticeApp::new(db.clone());
 
-    let test_answers = vec!["10", "20", "30", "40", "50"];
+    let test_answers = ["10", "20", "30", "40", "50"];
 
     for (i, answer) in test_answers.iter().enumerate() {
         app.set_answer(i, answer.to_string());

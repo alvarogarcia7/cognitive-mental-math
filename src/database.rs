@@ -193,7 +193,7 @@ mod tests {
         let answer = db.get_answer(1).unwrap().unwrap();
         assert_eq!(answer.operation_id, op_id);
         assert_eq!(answer.user_answer, 56);
-        assert_eq!(answer.is_correct, true);
+        assert!(answer.is_correct);
         assert_eq!(answer.time_spent_seconds, 2.5);
     }
 
@@ -206,7 +206,7 @@ mod tests {
 
         let answer = db.get_answer(1).unwrap().unwrap();
         assert_eq!(answer.user_answer, 35);
-        assert_eq!(answer.is_correct, false);
+        assert!(!answer.is_correct);
         assert_eq!(answer.time_spent_seconds, 3.2);
     }
 

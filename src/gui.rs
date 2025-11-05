@@ -160,7 +160,7 @@ impl eframe::App for MemoryPracticeApp {
                             );
 
                             // Auto-focus the text input
-                            if self.current_question_index == 0 && !response.lost_focus() {
+                            if !response.lost_focus() {
                                 response.request_focus();
                             }
 
