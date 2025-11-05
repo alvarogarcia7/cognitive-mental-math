@@ -36,13 +36,17 @@ clean:
 	@cargo clean
 .PHONY: clean
 
+build_and_test: build test
+	@echo "✅ Build and tests passed!"
+.PHONY: build_and_test
+
 # Pre-commit checks: compile and run tests
-pre-commit: build test fmt-check clippy
+pre-commit: build_and_test fmt-check clippy
 	@echo "✅ Pre-commit checks passed!"
 .PHONY: pre-commit
 
 # Pre-push checks: run all checks in parallel
-pre-push: build test fmt-check clippy
+pre-push: build_and_test fmt-check clippy
 	@echo "✅ Pre-push checks passed!"
 .PHONY: pre-push
 
