@@ -4,6 +4,13 @@ package-lock.json
 package.json
 
 claude
+.claude/
 
 .idea
 
+memory_practice.db
+
+
+# Added by cargo
+
+/target

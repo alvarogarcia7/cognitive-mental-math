@@ -1,0 +1,9 @@
+[package]
+name = "memory_practice"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = "0.29"
+rusqlite = { version = "0.32", features = ["bundled"] }
+rand = "0.8"
