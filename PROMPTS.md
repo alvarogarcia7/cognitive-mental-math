@@ -348,3 +348,86 @@ To support the stricter clippy checks, fixed several issues:
 **Result:**
 The codebase now has stricter quality enforcement at commit time, catching formatting issues, linter warnings, and test failures before code is committed.
 
+## 2025-11-05 15:53:19 AGB - Pre-push Hook Implementation
+
+Create a pre-push goal in the makefile, execute it in the pre-push git hook, install the new hooks.
+
+### Result
+
+Successfully implemented pre-push target in Makefile and integrated it with git hooks:
+
+**Makefile Changes:**
+
+Added new `pre-push` target:
+```makefile
+# Pre-push checks: placeholder for future checks
+pre-push:
+	@echo "Running pre-push checks..."
+	@echo "✅ Pre-push checks passed!"
+.PHONY: pre-push
+```
+
+**Pre-push Hook Updated** (hooks/pre-push)
+
+**Before:**
+```bash
+#!/bin/bash
+# Pre-push hook: Do nothing
+exit 0
+```
+
+**After:**
+```bash
+#!/bin/bash
+# Pre-push hook: Run pre-push checks via Makefile
+echo "Running pre-push hook..."
+
+# Run make pre-push
+if ! make pre-push; then
+    echo ""
+    echo "❌ Pre-push checks failed! Push aborted."
+    echo "Please fix the issues before pushing."
+    exit 1
+fi
+
+exit 0
+```
+
+**Implementation Details:**
+
+1. **Makefile Target:** Created `pre-push` target as placeholder for future checks
+   - Currently outputs status messages
+   - Can be extended later with additional validation (e.g., integration tests, deployment checks)
+   - Follows same .PHONY pattern as other targets
+
+2. **Git Hook:** Updated pre-push hook to execute `make pre-push`
+   - Provides consistent error handling
+   - Clear success/failure messages
+   - Aborts push on failure (exit code 1)
+
+3. **Installation:** Hooks reinstalled with `./install-hooks.sh`
+   - Both pre-commit and pre-push hooks now in repository
+   - Version controlled and shared across team
+
+**Consistency:**
+
+Both git hooks now follow the same pattern:
+- Pre-commit: calls `make pre-commit` (build + test + fmt-check + clippy)
+- Pre-push: calls `make pre-push` (placeholder, currently just messages)
+
+This provides a foundation for adding more comprehensive checks at push time if needed.
+
+**Testing:**
+- ✅ `make pre-push` target executes successfully
+- ✅ Pre-push hook installed and executable
+- ✅ Hook calls Makefile target correctly
+- ✅ Updated help message shows pre-push target
+- ✅ Hooks reinstalled with installation script
+
+**Benefits:**
+
+1. **Extensibility:** Easy to add more checks to pre-push later
+2. **Consistency:** Both hooks use Makefile for all checks
+3. **Maintainability:** All build/test logic centralized in Makefile
+4. **Developer Experience:** Clear feedback at both commit and push stages
+
