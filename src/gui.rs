@@ -1,4 +1,5 @@
 use crate::database::Database;
+use crate::deck::DeckSummary;
 use crate::operations::{Operation, generate_question_block};
 use eframe::egui;
 use std::sync::Arc;
@@ -12,6 +13,7 @@ pub struct MemoryPracticeApp {
     question_start_time: Option<Instant>,
     results: Vec<QuestionResult>,
     state: AppState,
+    current_deck_id: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -32,6 +34,9 @@ impl MemoryPracticeApp {
     pub fn new(db: Arc<Database>, questions: Vec<Operation>) -> Self {
         let user_answers = vec![String::new(); 10];
 
+        // Create a new deck
+        let current_deck_id = db.create_deck().ok();
+
         Self {
             db,
             questions,
@@ -40,6 +45,7 @@ impl MemoryPracticeApp {
             question_start_time: Some(Instant::now()),
             results: Vec::new(),
             state: AppState::ShowingQuestions,
+            current_deck_id,
         }
     }
 
@@ -61,16 +67,21 @@ impl MemoryPracticeApp {
                 .map(|start| start.elapsed().as_secs_f64())
                 .unwrap_or(0.0);
 
-            // Store in database
+            // Store in database with deck_id
             if let Ok(operation_id) = self.db.insert_operation(
                 question.operation_type.as_str(),
                 question.operand1,
                 question.operand2,
                 question.result,
+                self.current_deck_id,
             ) {
-                let _ = self
-                    .db
-                    .insert_answer(operation_id, user_answer, is_correct, time_spent);
+                let _ = self.db.insert_answer(
+                    operation_id,
+                    user_answer,
+                    is_correct,
+                    time_spent,
+                    self.current_deck_id,
+                );
             }
 
             // Store result for display
@@ -85,6 +96,8 @@ impl MemoryPracticeApp {
             self.current_question_index += 1;
 
             if self.current_question_index >= self.questions.len() {
+                // Calculate and save deck summary
+                self.complete_current_deck();
                 self.state = AppState::ShowingResults;
             } else {
                 self.question_start_time = Some(Instant::now());
@@ -92,7 +105,37 @@ impl MemoryPracticeApp {
         }
     }
 
+    fn complete_current_deck(&mut self) {
+        if let Some(deck_id) = self.current_deck_id {
+            // Collect results as (is_correct, time_spent) tuples
+            let results_data: Vec<(bool, f64)> = self
+                .results
+                .iter()
+                .map(|r| (r.is_correct, r.time_spent))
+                .collect();
+
+            // Calculate summary
+            let summary = DeckSummary::from_results(&results_data);
+
+            // Update deck with summary
+            let _ = self.db.update_deck_summary(deck_id, &summary);
+
+            // Mark deck as completed
+            let _ = self.db.complete_deck(deck_id);
+        }
+    }
+
     fn start_new_block(&mut self) {
+        // Mark previous deck as abandoned if not completed
+        if let Some(deck_id) = self.current_deck_id {
+            if self.state != AppState::ShowingResults {
+                let _ = self.db.abandon_deck(deck_id);
+            }
+        }
+
+        // Create new deck
+        self.current_deck_id = self.db.create_deck().ok();
+
         self.questions = generate_question_block(10);
         self.user_answers = vec![String::new(); 10];
         self.current_question_index = 0;
@@ -122,6 +165,10 @@ impl MemoryPracticeApp {
 
     pub fn submit_answer(&mut self) {
         self.submit_current_answer();
+    }
+
+    pub fn get_current_deck_id(&self) -> Option<i64> {
+        self.current_deck_id
     }
 }
 
@@ -179,15 +226,28 @@ impl eframe::App for MemoryPracticeApp {
                     }
                 }
                 AppState::ShowingResults => {
-                    ui.heading("Results");
-                    ui.add_space(20.0);
+                    ui.heading("Deck Results");
+                    ui.add_space(10.0);
+
+                    if let Some(deck_id) = self.current_deck_id {
+                        ui.label(format!("Deck ID: {}", deck_id));
+                    }
+                    ui.add_space(10.0);
 
                     let correct_count = self.results.iter().filter(|r| r.is_correct).count();
                     let total = self.results.len();
                     let average_time =
                         self.results.iter().map(|r| r.time_spent).sum::<f64>() / total as f64;
+                    let accuracy = if total > 0 {
+                        (correct_count as f64 / total as f64) * 100.0
+                    } else {
+                        0.0
+                    };
 
-                    ui.label(format!("Score: {}/{}", correct_count, total));
+                    ui.label(format!(
+                        "Score: {}/{} ({:.1}%)",
+                        correct_count, total, accuracy
+                    ));
                     ui.label(format!("Average time: {:.2}s", average_time));
                     ui.add_space(20.0);
 

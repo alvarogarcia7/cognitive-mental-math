@@ -12,6 +12,7 @@ fn test_store_and_retrieve_operation() {
             operation.operand1,
             operation.operand2,
             operation.result,
+            None,
         )
         .unwrap();
 
@@ -35,6 +36,7 @@ fn test_full_question_answer_workflow() {
             operation.operand1,
             operation.operand2,
             operation.result,
+            None,
         )
         .unwrap();
 
@@ -43,7 +45,7 @@ fn test_full_question_answer_workflow() {
     let is_correct = operation.check_answer(user_answer);
     let time_spent = 2.3;
 
-    db.insert_answer(op_id, user_answer, is_correct, time_spent)
+    db.insert_answer(op_id, user_answer, is_correct, time_spent, None)
         .unwrap();
 
     // Verify the answer was stored correctly
@@ -66,6 +68,7 @@ fn test_question_block_storage() {
             operation.operand1,
             operation.operand2,
             operation.result,
+            None,
         )
         .unwrap();
     }
@@ -84,6 +87,7 @@ fn test_correct_and_incorrect_answers() {
             operation.operand1,
             operation.operand2,
             operation.result,
+            None,
         )
         .unwrap();
 
@@ -92,7 +96,7 @@ fn test_correct_and_incorrect_answers() {
     let is_correct = operation.check_answer(wrong_answer);
     assert!(!is_correct);
 
-    db.insert_answer(op_id, wrong_answer, is_correct, 3.0)
+    db.insert_answer(op_id, wrong_answer, is_correct, 3.0, None)
         .unwrap();
 
     let answer = db.get_answer(1).unwrap().unwrap();
@@ -104,7 +108,7 @@ fn test_correct_and_incorrect_answers() {
     let is_correct = operation.check_answer(correct_answer);
     assert!(is_correct);
 
-    db.insert_answer(op_id, correct_answer, is_correct, 1.5)
+    db.insert_answer(op_id, correct_answer, is_correct, 1.5, None)
         .unwrap();
 
     let answer2 = db.get_answer(2).unwrap().unwrap();
@@ -131,11 +135,12 @@ fn test_multiple_operations_with_answers() {
                 operation.operand1,
                 operation.operand2,
                 operation.result,
+                None,
             )
             .unwrap();
 
         let is_correct = operation.check_answer(answers[i]);
-        db.insert_answer(op_id, answers[i], is_correct, times[i])
+        db.insert_answer(op_id, answers[i], is_correct, times[i], None)
             .unwrap();
     }
 
@@ -162,6 +167,7 @@ fn test_operation_types_in_database() {
             add_op.operand1,
             add_op.operand2,
             add_op.result,
+            None,
         )
         .unwrap();
 
@@ -171,6 +177,7 @@ fn test_operation_types_in_database() {
             mul_op.operand1,
             mul_op.operand2,
             mul_op.result,
+            None,
         )
         .unwrap();
 
