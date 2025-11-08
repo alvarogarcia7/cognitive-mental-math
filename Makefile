@@ -18,6 +18,16 @@ run: ## Run the application
 	@cargo run
 .PHONY: run
 
+run-dev: build ## Run the application in test mode (in-memory database)
+	@echo "Running application in test mode (in-memory database)..."
+	@cargo run -- --test
+.PHONY: run-dev
+
+run-dev-memory: build ## Run the application in test mode (in-memory database)
+	@echo "Running application in test mode (in-memory database)..."
+	@cargo run -- --db-path custom.db
+.PHONY: run-dev-memory
+
 clean: ## Clean build artifacts
 	@echo "Cleaning build artifacts..."
 	@cargo clean

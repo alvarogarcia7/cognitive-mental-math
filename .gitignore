@@ -9,6 +9,7 @@ claude
 .idea
 
 memory_practice.db
+*.db
 
 
 # Added by cargo
