@@ -172,6 +172,17 @@ impl MemoryPracticeApp {
     }
 }
 
+impl Drop for MemoryPracticeApp {
+    fn drop(&mut self) {
+        // Mark in-progress deck as abandoned when app closes
+        if let Some(deck_id) = self.current_deck_id {
+            if self.state != AppState::ShowingResults {
+                let _ = self.db.abandon_deck(deck_id);
+            }
+        }
+    }
+}
+
 impl eframe::App for MemoryPracticeApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -299,4 +310,63 @@ pub fn run_app(db: Arc<Database>) -> Result<(), eframe::Error> {
             )))
         }),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::deck::DeckStatus;
+
+    #[test]
+    fn test_deck_abandoned_on_drop_during_questions() {
+        let db = Arc::new(Database::new(":memory:").unwrap());
+        {
+            let app = MemoryPracticeApp::new(db.clone(), generate_question_block(10));
+            let deck_id = app.get_current_deck_id().expect("Deck should be created");
+            // Verify deck was created as in_progress
+            let deck = db
+                .get_deck(deck_id)
+                .expect("Database access should succeed")
+                .expect("Deck should exist");
+            assert_eq!(deck.status, DeckStatus::InProgress);
+            // app goes out of scope here, Drop will be called
+        }
+
+        // After drop, the deck should be marked as abandoned
+        let deck = db
+            .get_deck(1)
+            .expect("Database access should succeed")
+            .expect("Deck should still exist");
+        assert_eq!(
+            deck.status,
+            DeckStatus::Abandoned,
+            "Deck should be abandoned after app drop"
+        );
+    }
+
+    #[test]
+    fn test_completed_deck_not_abandoned_on_drop() {
+        let db = Arc::new(Database::new(":memory:").unwrap());
+        let deck_id = {
+            let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(10));
+            let deck_id = app.get_current_deck_id().expect("Deck should be created");
+
+            // Simulate completing the deck
+            app.state = AppState::ShowingResults;
+            app.complete_current_deck();
+
+            deck_id
+        };
+
+        // After drop, the deck should still be completed (not abandoned)
+        let deck = db
+            .get_deck(deck_id)
+            .expect("Database access should succeed")
+            .expect("Deck should still exist");
+        assert_eq!(
+            deck.status,
+            DeckStatus::Completed,
+            "Completed deck should not be abandoned"
+        );
+    }
 }
