@@ -6,12 +6,13 @@ use std::sync::Arc;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Detect database configuration from command line arguments
     let config = DatabaseFactory::detect_config();
+    let is_test_mode = config.is_test_mode;
 
     // Create database based on detected configuration
     let db = Arc::new(DatabaseFactory::create(config)?);
 
     // Run the GUI application
-    gui::run_app(db)?;
+    gui::run_app(db, is_test_mode)?;
 
     Ok(())
 }

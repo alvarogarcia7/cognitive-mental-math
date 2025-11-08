@@ -14,6 +14,7 @@ pub struct MemoryPracticeApp {
     results: Vec<QuestionResult>,
     state: AppState,
     current_deck_id: Option<i64>,
+    questions_per_block: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -32,7 +33,8 @@ pub enum AppState {
 
 impl MemoryPracticeApp {
     pub fn new(db: Arc<Database>, questions: Vec<Operation>) -> Self {
-        let user_answers = vec![String::new(); 10];
+        let questions_len = questions.len();
+        let user_answers = vec![String::new(); questions_len];
 
         // Create a new deck
         let current_deck_id = db.create_deck().ok();
@@ -46,6 +48,7 @@ impl MemoryPracticeApp {
             results: Vec::new(),
             state: AppState::ShowingQuestions,
             current_deck_id,
+            questions_per_block: questions_len,
         }
     }
 
@@ -136,8 +139,8 @@ impl MemoryPracticeApp {
         // Create new deck
         self.current_deck_id = self.db.create_deck().ok();
 
-        self.questions = generate_question_block(10);
-        self.user_answers = vec![String::new(); 10];
+        self.questions = generate_question_block(self.questions_per_block);
+        self.user_answers = vec![String::new(); self.questions_per_block];
         self.current_question_index = 0;
         self.question_start_time = Some(Instant::now());
         self.results.clear();
@@ -294,7 +297,10 @@ impl eframe::App for MemoryPracticeApp {
     }
 }
 
-pub fn run_app(db: Arc<Database>) -> Result<(), eframe::Error> {
+pub fn run_app(db: Arc<Database>, is_test_mode: bool) -> Result<(), eframe::Error> {
+    // In test mode, use 1 question per block; in production, use 10
+    let questions_per_block = if is_test_mode { 1 } else { 10 };
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([600.0, 400.0]),
         ..Default::default()
@@ -303,10 +309,10 @@ pub fn run_app(db: Arc<Database>) -> Result<(), eframe::Error> {
     eframe::run_native(
         "Memory Practice",
         options,
-        Box::new(|_cc| {
+        Box::new(move |_cc| {
             Ok(Box::new(MemoryPracticeApp::new(
-                db,
-                generate_question_block(10),
+                db.clone(),
+                generate_question_block(questions_per_block),
             )))
         }),
     )
@@ -368,5 +374,22 @@ mod tests {
             DeckStatus::Completed,
             "Completed deck should not be abandoned"
         );
+    }
+
+    #[test]
+    fn test_app_uses_correct_question_count() {
+        let db = Arc::new(Database::new(":memory:").unwrap());
+
+        // Test mode: 1 question per block
+        let app_test = MemoryPracticeApp::new(db.clone(), generate_question_block(1));
+        assert_eq!(app_test.questions_per_block, 1);
+        assert_eq!(app_test.questions.len(), 1);
+        assert_eq!(app_test.user_answers.len(), 1);
+
+        // Production mode: 10 questions per block
+        let app_prod = MemoryPracticeApp::new(db.clone(), generate_question_block(10));
+        assert_eq!(app_prod.questions_per_block, 10);
+        assert_eq!(app_prod.questions.len(), 10);
+        assert_eq!(app_prod.user_answers.len(), 10);
     }
 }
