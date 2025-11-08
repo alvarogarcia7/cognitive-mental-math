@@ -49,19 +49,16 @@ fmt: ## Format code
 .PHONY: fmt
 
 fmt-check: ## Check code formatting
-	@echo "Checking code formatting..."
-	@cargo fmt --check
+	cargo fmt --check
 .PHONY: fmt-check
 
 clippy: ## Run clippy linter
-	@echo "Running clippy..."
-	@cargo clippy -- -D warnings
+	cargo clippy -- -D warnings
 .PHONY: clippy
 
 
 clippy-fix: ## Run clippy fix
-	@echo "Running clippy fix..."
-	@cargo clippy --fix
+	cargo clippy --fix
 .PHONY: clippy-fix
 
 check: fmt-check clippy test ## Run all checks

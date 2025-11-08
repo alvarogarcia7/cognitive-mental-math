@@ -16,7 +16,7 @@ fn test_app_initialization() {
 #[test]
 fn test_answer_submission_flow() {
     let db = Arc::new(Database::new(":memory:").unwrap());
-    let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(10));
+    let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(1));
 
     // Set an answer and submit
     app.set_answer(0, "100".to_string());
@@ -26,9 +26,9 @@ fn test_answer_submission_flow() {
     assert_eq!(app.get_current_question_index(), 1);
     assert_eq!(app.get_results().len(), 1);
 
-    // Database should have one operation and one answer
     assert_eq!(db.count_operations().unwrap(), 1);
     assert_eq!(db.count_answers().unwrap(), 1);
+    assert_eq!(db.count_decks().unwrap(), 1);
 }
 
 #[test]
@@ -99,7 +99,7 @@ fn test_results_contain_correct_data() {
 #[test]
 fn test_multiple_answers_in_sequence() {
     let db = Arc::new(Database::new(":memory:").unwrap());
-    let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(10));
+    let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(5));
 
     let test_answers = ["10", "20", "30", "40", "50"];
 
@@ -154,7 +154,7 @@ fn test_state_transitions() {
 #[test]
 fn test_database_persistence_across_submissions() {
     let db = Arc::new(Database::new(":memory:").unwrap());
-    let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(10));
+    let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(3));
 
     // Submit 3 answers
     for i in 0..3 {
@@ -176,7 +176,7 @@ fn test_database_persistence_across_submissions() {
 #[test]
 fn test_timing_data_recorded() {
     let db = Arc::new(Database::new(":memory:").unwrap());
-    let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(10));
+    let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(1));
 
     app.set_answer(0, "50".to_string());
     app.submit_answer();

@@ -70,24 +70,7 @@ impl MemoryPracticeApp {
                 .map(|start| start.elapsed().as_secs_f64())
                 .unwrap_or(0.0);
 
-            // Store in database with deck_id
-            if let Ok(operation_id) = self.db.insert_operation(
-                question.operation_type.as_str(),
-                question.operand1,
-                question.operand2,
-                question.result,
-                self.current_deck_id,
-            ) {
-                let _ = self.db.insert_answer(
-                    operation_id,
-                    user_answer,
-                    is_correct,
-                    time_spent,
-                    self.current_deck_id,
-                );
-            }
-
-            // Store result for display
+            // Store result in memory for display and later batch write
             self.results.push(QuestionResult {
                 operation: question.clone(),
                 user_answer,
@@ -99,7 +82,7 @@ impl MemoryPracticeApp {
             self.current_question_index += 1;
 
             if self.current_question_index >= self.questions.len() {
-                // Calculate and save deck summary
+                // All questions answered - write results to database and complete deck
                 self.complete_current_deck();
                 self.state = AppState::ShowingResults;
             } else {
@@ -108,8 +91,36 @@ impl MemoryPracticeApp {
         }
     }
 
+    fn write_results_to_database(&self) {
+        if let Some(deck_id) = self.current_deck_id {
+            // Write all results to database
+            for result in &self.results {
+                // Insert operation
+                if let Ok(operation_id) = self.db.insert_operation(
+                    result.operation.operation_type.as_str(),
+                    result.operation.operand1,
+                    result.operation.operand2,
+                    result.operation.result,
+                    Some(deck_id),
+                ) {
+                    // Insert answer
+                    let _ = self.db.insert_answer(
+                        operation_id,
+                        result.user_answer,
+                        result.is_correct,
+                        result.time_spent,
+                        Some(deck_id),
+                    );
+                }
+            }
+        }
+    }
+
     fn complete_current_deck(&mut self) {
         if let Some(deck_id) = self.current_deck_id {
+            // Write all results to database first
+            self.write_results_to_database();
+
             // Collect results as (is_correct, time_spent) tuples
             let results_data: Vec<(bool, f64)> = self
                 .results
@@ -177,10 +188,12 @@ impl MemoryPracticeApp {
 
 impl Drop for MemoryPracticeApp {
     fn drop(&mut self) {
-        // Mark in-progress deck as abandoned when app closes
-        if let Some(deck_id) = self.current_deck_id {
+        // When app closes, if deck is in progress (not completed), write results and abandon
+        if let Some(_deck_id) = self.current_deck_id {
             if self.state != AppState::ShowingResults {
-                let _ = self.db.abandon_deck(deck_id);
+                // Write any answers that were collected to database before abandoning
+                self.write_results_to_database();
+                let _ = self.db.abandon_deck(_deck_id);
             }
         }
     }
@@ -391,5 +404,142 @@ mod tests {
         assert_eq!(app_prod.questions_per_block, 10);
         assert_eq!(app_prod.questions.len(), 10);
         assert_eq!(app_prod.user_answers.len(), 10);
+    }
+
+    #[test]
+    fn test_answers_not_written_immediately() {
+        let db = Arc::new(Database::new(":memory:").unwrap());
+        let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(2));
+        let _deck_id = app.get_current_deck_id().expect("Deck should be created");
+
+        // Submit only first answer (not completing the deck)
+        app.set_answer(0, "42".to_string());
+        app.submit_answer();
+
+        // Answer should be in memory
+        assert_eq!(app.results.len(), 1);
+        assert_eq!(app.results[0].user_answer, 42);
+
+        // But NOT in the database yet (deck is incomplete)
+        let operations_in_db = db
+            .count_operations()
+            .expect("Database access should succeed");
+        assert_eq!(
+            operations_in_db, 0,
+            "Operations should not be written to database immediately"
+        );
+    }
+
+    #[test]
+    fn test_answers_written_on_completion() {
+        let db = Arc::new(Database::new(":memory:").unwrap());
+        let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(1));
+        let _deck_id = app.get_current_deck_id().expect("Deck should be created");
+
+        // Get the expected answer from the question
+        let expected_answer = app.questions[0].result;
+
+        // Submit the correct answer
+        app.set_answer(0, expected_answer.to_string());
+        app.submit_answer();
+
+        // verify completion happened
+        assert_eq!(app.state, AppState::ShowingResults);
+
+        // Now answers should be in the database
+        let operations_in_db = db
+            .count_operations()
+            .expect("Database access should succeed");
+        assert_eq!(
+            operations_in_db, 1,
+            "Operations should be written when deck completes"
+        );
+
+        // Verify the operation and answer are correct
+        let operation = db
+            .get_operation(1)
+            .expect("Database access should succeed")
+            .expect("Operation should exist");
+        assert!(
+            !operation.operation_type.is_empty(),
+            "Operation type should exist"
+        );
+
+        let answer = db
+            .get_answer(1)
+            .expect("Database access should succeed")
+            .expect("Answer should exist");
+        assert_eq!(answer.user_answer, expected_answer);
+        assert!(answer.is_correct, "Answer should be marked as correct");
+    }
+
+    #[test]
+    fn test_answers_written_on_drop_abandoned() {
+        let db = Arc::new(Database::new(":memory:").unwrap());
+        {
+            let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(2));
+            let _deck_id = app.get_current_deck_id().expect("Deck should be created");
+
+            // Submit partial answers (not completing the deck)
+            app.set_answer(0, "42".to_string());
+            app.submit_answer();
+
+            // Verify not in database yet
+            let operations_count = db
+                .count_operations()
+                .expect("Database access should succeed");
+            assert_eq!(operations_count, 0, "Answers not yet written to database");
+
+            // app drops here
+        }
+
+        // After drop, answers should be written and deck abandoned
+        let operations_in_db = db
+            .count_operations()
+            .expect("Database access should succeed");
+        assert_eq!(
+            operations_in_db, 1,
+            "Answers should be written when app closes with incomplete deck"
+        );
+
+        let deck = db
+            .get_deck(1)
+            .expect("Database access should succeed")
+            .expect("Deck should exist");
+        assert_eq!(
+            deck.status,
+            DeckStatus::Abandoned,
+            "Incomplete deck should be abandoned on app close"
+        );
+    }
+
+    #[test]
+    fn test_multiple_answers_written_together() {
+        let db = Arc::new(Database::new(":memory:").unwrap());
+        let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(3));
+
+        // Submit all answers
+        for i in 0..3 {
+            app.set_answer(i, format!("{}", i * 10));
+            app.submit_answer();
+        }
+
+        // All should be written when deck completes
+        let operations_in_db = db
+            .count_operations()
+            .expect("Database access should succeed");
+        assert_eq!(
+            operations_in_db, 3,
+            "All answers should be written together"
+        );
+
+        // Verify all answers are in database
+        for i in 1..=3 {
+            let answer = db
+                .get_answer(i as i64)
+                .expect("Database access should succeed")
+                .expect(&format!("Answer {} should exist", i));
+            assert!(answer.user_answer >= 0);
+        }
     }
 }
