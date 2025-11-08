@@ -6,6 +6,7 @@ help: ## Show this help message
 build: ## Build the project
 	@echo "Building project..."
 	@cargo build --verbose
+	@cargo build --tests --verbose
 .PHONY: build
 
 test: build ## Run all tests

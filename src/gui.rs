@@ -32,23 +32,17 @@ pub enum AppState {
 }
 
 impl MemoryPracticeApp {
-    pub fn new(db: Arc<Database>, questions: Vec<Operation>) -> Self {
-        let questions_len = questions.len();
-        let user_answers = vec![String::new(); questions_len];
-
-        // Create a new deck
-        let current_deck_id = db.create_deck().ok();
-
+    pub fn new(db: Arc<Database>, questions_per_block: usize) -> Self {
         Self {
             db,
-            questions,
+            questions: Vec::new(),
             current_question_index: 0,
-            user_answers,
-            question_start_time: Some(Instant::now()),
+            user_answers: Vec::new(),
+            question_start_time: None,
             results: Vec::new(),
-            state: AppState::ShowingQuestions,
-            current_deck_id,
-            questions_per_block: questions_len,
+            state: AppState::ShowingResults,
+            current_deck_id: None,
+            questions_per_block,
         }
     }
 
@@ -139,7 +133,7 @@ impl MemoryPracticeApp {
         }
     }
 
-    fn start_new_block(&mut self) {
+    pub fn start_new_block(&mut self) {
         // Mark previous deck as abandoned if not completed
         if let Some(deck_id) = self.current_deck_id {
             if self.state != AppState::ShowingResults {
@@ -261,43 +255,50 @@ impl eframe::App for MemoryPracticeApp {
                     }
                     ui.add_space(10.0);
 
-                    let correct_count = self.results.iter().filter(|r| r.is_correct).count();
                     let total = self.results.len();
-                    let average_time =
-                        self.results.iter().map(|r| r.time_spent).sum::<f64>() / total as f64;
-                    let accuracy = if total > 0 {
-                        (correct_count as f64 / total as f64) * 100.0
+                    if total == 0 {
+                        ui.label("No results yet. Click 'Start New Block' to begin.");
                     } else {
-                        0.0
-                    };
+                        let correct_count = self.results.iter().filter(|r| r.is_correct).count();
+                        let average_time = if total > 0 {
+                            self.results.iter().map(|r| r.time_spent).sum::<f64>() / total as f64
+                        } else {
+                            0.0
+                        };
+                        let accuracy = if total > 0 {
+                            (correct_count as f64 / total as f64) * 100.0
+                        } else {
+                            0.0
+                        };
 
-                    ui.label(format!(
-                        "Score: {}/{} ({:.1}%)",
-                        correct_count, total, accuracy
-                    ));
-                    ui.label(format!("Average time: {:.2}s", average_time));
-                    ui.add_space(20.0);
+                        ui.label(format!(
+                            "Score: {}/{} ({:.1}%)",
+                            correct_count, total, accuracy
+                        ));
+                        ui.label(format!("Average time: {:.2}s", average_time));
+                        ui.add_space(20.0);
 
-                    // Show detailed results
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        for (i, result) in self.results.iter().enumerate() {
-                            ui.horizontal(|ui| {
-                                let status = if result.is_correct { "✓" } else { "✗" };
-                                let color = if result.is_correct {
-                                    egui::Color32::GREEN
-                                } else {
-                                    egui::Color32::RED
-                                };
+                        // Show detailed results
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            for (i, result) in self.results.iter().enumerate() {
+                                ui.horizontal(|ui| {
+                                    let status = if result.is_correct { "✓" } else { "✗" };
+                                    let color = if result.is_correct {
+                                        egui::Color32::GREEN
+                                    } else {
+                                        egui::Color32::RED
+                                    };
 
-                                ui.label(format!("{}.", i + 1));
-                                ui.label(result.operation.to_string().replace("?", ""));
-                                ui.label(result.operation.result.to_string());
-                                ui.label(format!("(Your answer: {})", result.user_answer));
-                                ui.label(egui::RichText::new(status).color(color).strong());
-                                ui.label(format!("{:.2}s", result.time_spent));
-                            });
-                        }
-                    });
+                                    ui.label(format!("{}.", i + 1));
+                                    ui.label(result.operation.to_string().replace("?", ""));
+                                    ui.label(result.operation.result.to_string());
+                                    ui.label(format!("(Your answer: {})", result.user_answer));
+                                    ui.label(egui::RichText::new(status).color(color).strong());
+                                    ui.label(format!("{:.2}s", result.time_spent));
+                                });
+                            }
+                        });
+                    }
 
                     ui.add_space(20.0);
 
@@ -325,7 +326,7 @@ pub fn run_app(db: Arc<Database>, is_test_mode: bool) -> Result<(), eframe::Erro
         Box::new(move |_cc| {
             Ok(Box::new(MemoryPracticeApp::new(
                 db.clone(),
-                generate_question_block(questions_per_block),
+                questions_per_block,
             )))
         }),
     )
@@ -340,7 +341,8 @@ mod tests {
     fn test_deck_abandoned_on_drop_during_questions() {
         let db = Arc::new(Database::new(":memory:").unwrap());
         {
-            let app = MemoryPracticeApp::new(db.clone(), generate_question_block(10));
+            let mut app = MemoryPracticeApp::new(db.clone(), 10);
+            app.start_new_block();
             let deck_id = app.get_current_deck_id().expect("Deck should be created");
             // Verify deck was created as in_progress
             let deck = db
@@ -367,7 +369,8 @@ mod tests {
     fn test_completed_deck_not_abandoned_on_drop() {
         let db = Arc::new(Database::new(":memory:").unwrap());
         let deck_id = {
-            let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(10));
+            let mut app = MemoryPracticeApp::new(db.clone(), 10);
+            app.start_new_block();
             let deck_id = app.get_current_deck_id().expect("Deck should be created");
 
             // Simulate completing the deck
@@ -394,13 +397,15 @@ mod tests {
         let db = Arc::new(Database::new(":memory:").unwrap());
 
         // Test mode: 1 question per block
-        let app_test = MemoryPracticeApp::new(db.clone(), generate_question_block(1));
+        let mut app_test = MemoryPracticeApp::new(db.clone(), 1);
+        app_test.start_new_block();
         assert_eq!(app_test.questions_per_block, 1);
         assert_eq!(app_test.questions.len(), 1);
         assert_eq!(app_test.user_answers.len(), 1);
 
         // Production mode: 10 questions per block
-        let app_prod = MemoryPracticeApp::new(db.clone(), generate_question_block(10));
+        let mut app_prod = MemoryPracticeApp::new(db.clone(), 10);
+        app_prod.start_new_block();
         assert_eq!(app_prod.questions_per_block, 10);
         assert_eq!(app_prod.questions.len(), 10);
         assert_eq!(app_prod.user_answers.len(), 10);
@@ -409,7 +414,8 @@ mod tests {
     #[test]
     fn test_answers_not_written_immediately() {
         let db = Arc::new(Database::new(":memory:").unwrap());
-        let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(2));
+        let mut app = MemoryPracticeApp::new(db.clone(), 2);
+        app.start_new_block();
         let _deck_id = app.get_current_deck_id().expect("Deck should be created");
 
         // Submit only first answer (not completing the deck)
@@ -433,7 +439,8 @@ mod tests {
     #[test]
     fn test_answers_written_on_completion() {
         let db = Arc::new(Database::new(":memory:").unwrap());
-        let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(1));
+        let mut app = MemoryPracticeApp::new(db.clone(), 1);
+        app.start_new_block();
         let _deck_id = app.get_current_deck_id().expect("Deck should be created");
 
         // Get the expected answer from the question
@@ -477,7 +484,8 @@ mod tests {
     fn test_answers_written_on_drop_abandoned() {
         let db = Arc::new(Database::new(":memory:").unwrap());
         {
-            let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(2));
+            let mut app = MemoryPracticeApp::new(db.clone(), 2);
+            app.start_new_block();
             let _deck_id = app.get_current_deck_id().expect("Deck should be created");
 
             // Submit partial answers (not completing the deck)
@@ -516,7 +524,8 @@ mod tests {
     #[test]
     fn test_multiple_answers_written_together() {
         let db = Arc::new(Database::new(":memory:").unwrap());
-        let mut app = MemoryPracticeApp::new(db.clone(), generate_question_block(3));
+        let mut app = MemoryPracticeApp::new(db.clone(), 3);
+        app.start_new_block();
 
         // Submit all answers
         for i in 0..3 {
