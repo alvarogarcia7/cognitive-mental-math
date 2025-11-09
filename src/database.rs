@@ -1,5 +1,33 @@
 use crate::deck::{Deck, DeckStatus, DeckSummary};
+use crate::spaced_repetition::ReviewItem;
+use chrono::{DateTime, Utc};
+use log::debug;
 use rusqlite::{Connection, Result, params};
+
+/// Formats a future datetime as human-readable time until that moment
+fn format_time_until(future_date: DateTime<Utc>) -> String {
+    let now = Utc::now();
+    let duration = future_date.signed_duration_since(now);
+
+    if duration.num_seconds() <= 0 {
+        "now".to_string()
+    } else if duration.num_seconds() < 60 {
+        format!("in {} seconds", duration.num_seconds())
+    } else if duration.num_minutes() < 60 {
+        let mins = duration.num_minutes();
+        format!("in {} minute{}", mins, if mins == 1 { "" } else { "s" })
+    } else if duration.num_hours() < 24 {
+        let hours = duration.num_hours();
+        format!("in {} hour{}", hours, if hours == 1 { "" } else { "s" })
+    } else if duration.num_days() == 1 {
+        "tomorrow".to_string()
+    } else if duration.num_days() < 30 {
+        let days = duration.num_days();
+        format!("in {} day{}", days, if days == 1 { "" } else { "s" })
+    } else {
+        format!("on {}", future_date.format("%Y-%m-%d"))
+    }
+}
 
 pub struct Database {
     conn: Connection,
@@ -95,6 +123,27 @@ impl Database {
 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_deck_created ON decks(created_at DESC)",
+            [],
+        )?;
+
+        // Create review_items table for spaced repetition
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS review_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                operation_id INTEGER UNIQUE NOT NULL,
+                repetitions INTEGER NOT NULL DEFAULT 0,
+                interval INTEGER NOT NULL DEFAULT 0,
+                ease_factor REAL NOT NULL DEFAULT 2.5,
+                next_review_date TEXT NOT NULL,
+                last_reviewed_date TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (operation_id) REFERENCES operations(id)
+            )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_next_review ON review_items(next_review_date)",
             [],
         )?;
 
@@ -308,6 +357,134 @@ impl Database {
         let count: i64 = self
             .conn
             .query_row("SELECT COUNT(*) FROM decks", [], |row| row.get(0))?;
+        Ok(count)
+    }
+
+    // Review Items Methods
+
+    pub fn insert_review_item(
+        &self,
+        operation_id: i64,
+        next_review_date: DateTime<Utc>,
+    ) -> Result<i64> {
+        let next_review_str = next_review_date.to_rfc3339();
+        debug!(
+            "Creating new review item for operation_id={}, next review: {}",
+            operation_id,
+            format_time_until(next_review_date)
+        );
+        self.conn.execute(
+            "INSERT INTO review_items (operation_id, next_review_date)
+             VALUES (?1, ?2)",
+            params![operation_id, next_review_str],
+        )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    pub fn update_review_item(&self, item: &ReviewItem) -> Result<()> {
+        let next_review_str = item.next_review_date.to_rfc3339();
+        let last_reviewed_str = item.last_reviewed_date.map(|d| d.to_rfc3339());
+
+        debug!(
+            "Updating review item id={}: reps={}, interval={} days, ease={:.2}, next review: {}",
+            item.id.unwrap_or(0),
+            item.repetitions,
+            item.interval,
+            item.ease_factor,
+            format_time_until(item.next_review_date)
+        );
+
+        self.conn.execute(
+            "UPDATE review_items
+             SET repetitions = ?1, interval = ?2, ease_factor = ?3,
+                 next_review_date = ?4, last_reviewed_date = ?5
+             WHERE id = ?6",
+            params![
+                item.repetitions,
+                item.interval,
+                item.ease_factor,
+                next_review_str,
+                last_reviewed_str,
+                item.id
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_review_item(&self, operation_id: i64) -> Result<Option<ReviewItem>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, operation_id, repetitions, interval, ease_factor,
+                    next_review_date, last_reviewed_date
+             FROM review_items WHERE operation_id = ?1",
+        )?;
+
+        let mut rows = stmt.query([operation_id])?;
+
+        if let Some(row) = rows.next()? {
+            Ok(Some(ReviewItem {
+                id: row.get(0)?,
+                operation_id: row.get(1)?,
+                repetitions: row.get(2)?,
+                interval: row.get(3)?,
+                ease_factor: row.get(4)?,
+                next_review_date: DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
+                    .unwrap()
+                    .with_timezone(&Utc),
+                last_reviewed_date: row.get::<_, Option<String>>(6)?.map(|s| {
+                    DateTime::parse_from_rfc3339(&s)
+                        .unwrap()
+                        .with_timezone(&Utc)
+                }),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn get_due_reviews(&self, before_date: DateTime<Utc>) -> Result<Vec<ReviewItem>> {
+        let before_str = before_date.to_rfc3339();
+        let mut stmt = self.conn.prepare(
+            "SELECT id, operation_id, repetitions, interval, ease_factor,
+                    next_review_date, last_reviewed_date
+             FROM review_items
+             WHERE next_review_date <= ?1
+             ORDER BY next_review_date ASC",
+        )?;
+
+        let items = stmt.query_map([&before_str], |row| {
+            Ok(ReviewItem {
+                id: row.get(0)?,
+                operation_id: row.get(1)?,
+                repetitions: row.get(2)?,
+                interval: row.get(3)?,
+                ease_factor: row.get(4)?,
+                next_review_date: DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
+                    .unwrap()
+                    .with_timezone(&Utc),
+                last_reviewed_date: row.get::<_, Option<String>>(6)?.map(|s| {
+                    DateTime::parse_from_rfc3339(&s)
+                        .unwrap()
+                        .with_timezone(&Utc)
+                }),
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for item in items {
+            result.push(item?);
+        }
+
+        debug!("Retrieved {} due review items from database", result.len());
+        Ok(result)
+    }
+
+    pub fn count_due_reviews(&self, before_date: DateTime<Utc>) -> Result<i64> {
+        let before_str = before_date.to_rfc3339();
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM review_items WHERE next_review_date <= ?1",
+            [&before_str],
+            |row| row.get(0),
+        )?;
         Ok(count)
     }
 }
@@ -540,5 +717,131 @@ mod tests {
         // Verify both recent decks are among the created ones
         assert!([deck1, deck2, deck3].contains(&recent[0].id));
         assert!([deck1, deck2, deck3].contains(&recent[1].id));
+    }
+
+    // Review items tests
+
+    #[test]
+    fn test_insert_review_item() {
+        let db = create_test_db();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, None).unwrap();
+
+        let now = chrono::Utc::now();
+        let review_id = db.insert_review_item(op_id, now).unwrap();
+
+        assert!(review_id > 0);
+    }
+
+    #[test]
+    fn test_get_review_item() {
+        let db = create_test_db();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, None).unwrap();
+
+        let now = chrono::Utc::now();
+        db.insert_review_item(op_id, now).unwrap();
+
+        let item = db.get_review_item(op_id).unwrap();
+        assert!(item.is_some());
+        let review = item.unwrap();
+        assert_eq!(review.operation_id, op_id);
+        assert_eq!(review.repetitions, 0);
+        assert_eq!(review.interval, 0);
+        assert_eq!(review.ease_factor, 2.5);
+    }
+
+    #[test]
+    fn test_update_review_item() {
+        let db = create_test_db();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, None).unwrap();
+
+        let now = chrono::Utc::now();
+        db.insert_review_item(op_id, now).unwrap();
+
+        let mut item = db.get_review_item(op_id).unwrap().unwrap();
+        item.repetitions = 1;
+        item.interval = 3;
+        item.ease_factor = 2.7;
+        item.next_review_date = now + chrono::Duration::days(3);
+
+        db.update_review_item(&item).unwrap();
+
+        let updated = db.get_review_item(op_id).unwrap().unwrap();
+        assert_eq!(updated.repetitions, 1);
+        assert_eq!(updated.interval, 3);
+        assert_eq!(updated.ease_factor, 2.7);
+    }
+
+    #[test]
+    fn test_get_due_reviews() {
+        let db = create_test_db();
+        let now = chrono::Utc::now();
+        let past = now - chrono::Duration::days(1);
+        let future = now + chrono::Duration::days(1);
+
+        let op_id1 = db.insert_operation("ADD", 2, 3, 5, None).unwrap();
+        let op_id2 = db.insert_operation("ADD", 4, 5, 9, None).unwrap();
+        let op_id3 = db.insert_operation("ADD", 6, 7, 13, None).unwrap();
+
+        // op_id1: due (past date)
+        db.insert_review_item(op_id1, past).unwrap();
+        // op_id2: due (exactly now)
+        db.insert_review_item(op_id2, now).unwrap();
+        // op_id3: not due (future date)
+        db.insert_review_item(op_id3, future).unwrap();
+
+        let due = db.get_due_reviews(now).unwrap();
+        assert_eq!(due.len(), 2);
+
+        // Verify the returned items are the correct ones
+        let due_ids: Vec<i64> = due.iter().map(|item| item.operation_id).collect();
+        assert!(due_ids.contains(&op_id1));
+        assert!(due_ids.contains(&op_id2));
+        assert!(!due_ids.contains(&op_id3));
+    }
+
+    #[test]
+    fn test_count_due_reviews() {
+        let db = create_test_db();
+        let now = chrono::Utc::now();
+        let past = now - chrono::Duration::days(1);
+        let future = now + chrono::Duration::days(1);
+
+        let op_id1 = db.insert_operation("ADD", 2, 3, 5, None).unwrap();
+        let op_id2 = db.insert_operation("ADD", 4, 5, 9, None).unwrap();
+        let op_id3 = db.insert_operation("ADD", 6, 7, 13, None).unwrap();
+
+        db.insert_review_item(op_id1, past).unwrap();
+        db.insert_review_item(op_id2, now).unwrap();
+        db.insert_review_item(op_id3, future).unwrap();
+
+        let count = db.count_due_reviews(now).unwrap();
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn test_get_nonexistent_review_item() {
+        let db = create_test_db();
+        let result = db.get_review_item(999).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_review_item_with_multiple_operations() {
+        let db = create_test_db();
+        let now = chrono::Utc::now();
+
+        let op_id1 = db.insert_operation("ADD", 2, 3, 5, None).unwrap();
+        let op_id2 = db.insert_operation("MULTIPLY", 3, 4, 12, None).unwrap();
+
+        db.insert_review_item(op_id1, now).unwrap();
+        db.insert_review_item(op_id2, now + chrono::Duration::days(1))
+            .unwrap();
+
+        let item1 = db.get_review_item(op_id1).unwrap().unwrap();
+        let item2 = db.get_review_item(op_id2).unwrap().unwrap();
+
+        assert_eq!(item1.operation_id, op_id1);
+        assert_eq!(item2.operation_id, op_id2);
+        assert_ne!(item1.operation_id, item2.operation_id);
     }
 }

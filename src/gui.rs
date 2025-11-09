@@ -1,9 +1,39 @@
 use crate::database::Database;
 use crate::deck::DeckSummary;
-use crate::operations::{Operation, generate_question_block};
+use crate::operations::{Operation, OperationType, generate_question_block};
+use crate::spaced_repetition::{
+    ReviewScheduler, create_initial_review_item, performance_to_quality,
+};
+use chrono::{DateTime, Utc};
 use eframe::egui;
+use log::{debug, info};
 use std::sync::Arc;
 use std::time::Instant;
+
+/// Formats a future datetime as human-readable time until that moment
+fn format_time_until(future_date: DateTime<Utc>) -> String {
+    let now = Utc::now();
+    let duration = future_date.signed_duration_since(now);
+
+    if duration.num_seconds() <= 0 {
+        "now".to_string()
+    } else if duration.num_seconds() < 60 {
+        format!("in {} seconds", duration.num_seconds())
+    } else if duration.num_minutes() < 60 {
+        let mins = duration.num_minutes();
+        format!("in {} minute{}", mins, if mins == 1 { "" } else { "s" })
+    } else if duration.num_hours() < 24 {
+        let hours = duration.num_hours();
+        format!("in {} hour{}", hours, if hours == 1 { "" } else { "s" })
+    } else if duration.num_days() == 1 {
+        "tomorrow".to_string()
+    } else if duration.num_days() < 30 {
+        let days = duration.num_days();
+        format!("in {} day{}", days, if days == 1 { "" } else { "s" })
+    } else {
+        format!("on {}", future_date.format("%Y-%m-%d"))
+    }
+}
 
 pub struct MemoryPracticeApp {
     db: Arc<Database>,
@@ -23,6 +53,8 @@ pub struct QuestionResult {
     pub user_answer: i32,
     pub is_correct: bool,
     pub time_spent: f64,
+    pub is_review: bool,
+    pub original_operation_id: Option<i64>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -64,12 +96,18 @@ impl MemoryPracticeApp {
                 .map(|start| start.elapsed().as_secs_f64())
                 .unwrap_or(0.0);
 
+            // Determine if this is a review (operation already has an id)
+            let is_review = question.id.is_some();
+            let original_operation_id = question.id;
+
             // Store result in memory for display and later batch write
             self.results.push(QuestionResult {
                 operation: question.clone(),
                 user_answer,
                 is_correct,
                 time_spent,
+                is_review,
+                original_operation_id,
             });
 
             // Move to next question
@@ -87,24 +125,128 @@ impl MemoryPracticeApp {
 
     fn write_results_to_database(&self) {
         if let Some(deck_id) = self.current_deck_id {
+            let scheduler = ReviewScheduler::new();
+
             // Write all results to database
             for result in &self.results {
-                // Insert operation
-                if let Ok(operation_id) = self.db.insert_operation(
-                    result.operation.operation_type.as_str(),
+                let question_str = format!(
+                    "{} {} {} = ?",
                     result.operation.operand1,
-                    result.operation.operand2,
-                    result.operation.result,
-                    Some(deck_id),
-                ) {
-                    // Insert answer
-                    let _ = self.db.insert_answer(
-                        operation_id,
-                        result.user_answer,
-                        result.is_correct,
-                        result.time_spent,
+                    result.operation.operation_type.symbol(),
+                    result.operation.operand2
+                );
+
+                if result.is_review {
+                    // For reviews, just insert the answer and update review item
+                    if let Some(operation_id) = result.original_operation_id {
+                        // Insert answer for existing operation
+                        if self
+                            .db
+                            .insert_answer(
+                                operation_id,
+                                result.user_answer,
+                                result.is_correct,
+                                result.time_spent,
+                                Some(deck_id),
+                            )
+                            .is_ok()
+                        {
+                            // Update the review item based on performance
+                            if let Ok(Some(mut review_item)) = self.db.get_review_item(operation_id)
+                            {
+                                let quality =
+                                    performance_to_quality(result.is_correct, result.time_spent);
+                                let (reps, interval, ease, next_date) =
+                                    scheduler.process_review(&review_item, quality);
+
+                                let quality_str = match quality {
+                                    sra::sm_2::Quality::Grade0 => "Grade0 (Incorrect)",
+                                    sra::sm_2::Quality::Grade1 => "Grade1",
+                                    sra::sm_2::Quality::Grade2 => "Grade2 (Difficult)",
+                                    sra::sm_2::Quality::Grade3 => "Grade3 (With difficulty)",
+                                    sra::sm_2::Quality::Grade4 => "Grade4 (After hesitation)",
+                                    sra::sm_2::Quality::Grade5 => "Grade5 (Perfect)",
+                                };
+
+                                info!(
+                                    "Review: {} | Quality: {} | Next review: {} | Reps: {}, Interval: {} days, Ease: {:.2}",
+                                    question_str,
+                                    quality_str,
+                                    format_time_until(next_date),
+                                    reps,
+                                    interval,
+                                    ease
+                                );
+
+                                review_item.repetitions = reps;
+                                review_item.interval = interval;
+                                review_item.ease_factor = ease;
+                                review_item.next_review_date = next_date;
+                                review_item.last_reviewed_date = Some(Utc::now());
+
+                                let _ = self.db.update_review_item(&review_item);
+                            }
+                        }
+                    }
+                } else {
+                    // For new questions, insert operation, answer, and create review item
+                    if let Ok(operation_id) = self.db.insert_operation(
+                        result.operation.operation_type.as_str(),
+                        result.operation.operand1,
+                        result.operation.operand2,
+                        result.operation.result,
                         Some(deck_id),
-                    );
+                    ) {
+                        // Insert answer
+                        if self
+                            .db
+                            .insert_answer(
+                                operation_id,
+                                result.user_answer,
+                                result.is_correct,
+                                result.time_spent,
+                                Some(deck_id),
+                            )
+                            .is_ok()
+                        {
+                            // Create initial review item based on performance
+                            let quality =
+                                performance_to_quality(result.is_correct, result.time_spent);
+                            let mut review_item =
+                                create_initial_review_item(operation_id, result.is_correct);
+
+                            // Process review to get updated parameters
+                            let (reps, interval, ease, next_date) =
+                                scheduler.process_review(&review_item, quality);
+
+                            let quality_str = match quality {
+                                sra::sm_2::Quality::Grade0 => "Grade0 (Incorrect)",
+                                sra::sm_2::Quality::Grade1 => "Grade1",
+                                sra::sm_2::Quality::Grade2 => "Grade2 (Difficult)",
+                                sra::sm_2::Quality::Grade3 => "Grade3 (With difficulty)",
+                                sra::sm_2::Quality::Grade4 => "Grade4 (After hesitation)",
+                                sra::sm_2::Quality::Grade5 => "Grade5 (Perfect)",
+                            };
+
+                            info!(
+                                "New question: {} | Quality: {} | First review: {} | Reps: {}, Interval: {} days, Ease: {:.2}",
+                                question_str,
+                                quality_str,
+                                format_time_until(next_date),
+                                reps,
+                                interval,
+                                ease
+                            );
+
+                            review_item.repetitions = reps;
+                            review_item.interval = interval;
+                            review_item.ease_factor = ease;
+                            review_item.next_review_date = next_date;
+
+                            let _ = self.db.insert_review_item(operation_id, next_date);
+                            let _ = self.db.update_review_item(&review_item);
+                        }
+                    }
                 }
             }
         }
@@ -144,8 +286,62 @@ impl MemoryPracticeApp {
         // Create new deck
         self.current_deck_id = self.db.create_deck().ok();
 
-        self.questions = generate_question_block(self.questions_per_block);
-        self.user_answers = vec![String::new(); self.questions_per_block];
+        // Fetch due reviews first
+        let mut questions = Vec::new();
+        let now = Utc::now();
+
+        if let Ok(due_reviews) = self.db.get_due_reviews(now) {
+            let num_due = due_reviews.len();
+            info!("Found {} review question(s) due for practice", num_due);
+
+            for (idx, review_item) in due_reviews.iter().enumerate() {
+                // Fetch the operation data
+                if let Ok(Some(op_record)) = self.db.get_operation(review_item.operation_id) {
+                    if let Some(op_type) = OperationType::from_str(&op_record.operation_type) {
+                        let mut operation =
+                            Operation::new(op_type, op_record.operand1, op_record.operand2);
+                        // Set the id to track this as a review
+                        operation.id = Some(op_record.id);
+
+                        // Log the first review question
+                        if idx == 0 {
+                            info!(
+                                "First review question: {} {} {} = {} (Reps: {}, Current interval: {} days, Ease: {:.2})",
+                                op_record.operand1,
+                                operation.operation_type.symbol(),
+                                op_record.operand2,
+                                op_record.result,
+                                review_item.repetitions,
+                                review_item.interval,
+                                review_item.ease_factor
+                            );
+                        }
+
+                        questions.push(operation);
+                    }
+                }
+            }
+        }
+
+        // Generate new questions to fill the block
+        let remaining_questions = self.questions_per_block.saturating_sub(questions.len());
+        let mut new_questions = generate_question_block(remaining_questions);
+        questions.append(&mut new_questions);
+
+        // If we have fewer questions than requested, generate more
+        if questions.len() < self.questions_per_block {
+            let needed = self.questions_per_block - questions.len();
+            let mut more_questions = generate_question_block(needed);
+            questions.append(&mut more_questions);
+        }
+
+        // Limit to exactly questions_per_block
+        questions.truncate(self.questions_per_block);
+
+        debug!("Started new block with {} questions", questions.len());
+
+        self.questions = questions;
+        self.user_answers = vec![String::new(); self.questions.len()];
         self.current_question_index = 0;
         self.question_start_time = Some(Instant::now());
         self.results.clear();

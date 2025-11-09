@@ -8,3 +8,6 @@ eframe = "0.29"
 rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
 rand = "0.8"
 chrono = "0.4"
+sra = "0.1"
+log = "0.4"
+env_logger = "0.11"

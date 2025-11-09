@@ -8,6 +8,15 @@ pub enum OperationType {
 }
 
 impl OperationType {
+    pub(crate) fn from_str(op_record: &String) -> Option<OperationType> {
+        if op_record == "ADD" {
+            Some(OperationType::Addition)
+        } else if op_record == "MULTIPLY" {
+            Some(OperationType::Multiplication)
+        } else {
+            None
+        }
+    }
     pub fn as_str(&self) -> &str {
         match self {
             OperationType::Addition => "ADD",
