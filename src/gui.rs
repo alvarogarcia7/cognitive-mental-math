@@ -257,7 +257,7 @@ impl eframe::App for MemoryPracticeApp {
 
                     let total = self.results.len();
                     if total == 0 {
-                        ui.label("No results yet. Click 'Start New Block' to begin.");
+                        ui.label("No results yet. Click 'Start new Deck' to begin.");
                     } else {
                         let correct_count = self.results.iter().filter(|r| r.is_correct).count();
                         let average_time = if total > 0 {
@@ -302,7 +302,7 @@ impl eframe::App for MemoryPracticeApp {
 
                     ui.add_space(20.0);
 
-                    if ui.button("Start New Block").clicked() {
+                    if ui.button("Start new Deck").clicked() {
                         self.start_new_block();
                     }
                 }
