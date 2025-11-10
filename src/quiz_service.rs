@@ -1,7 +1,8 @@
+use crate::answer_evaluator_service::AnswerEvaluatorService;
 use crate::database::Database;
 use crate::deck::DeckSummary;
 use crate::operations::{Operation, OperationType};
-use crate::spaced_repetition::{AnswerTimedEvaluator, ReviewItem, ReviewScheduler};
+use crate::spaced_repetition::{ReviewItem, ReviewScheduler};
 use crate::time_format::format_time_difference;
 use chrono::{DateTime, Utc};
 use log::info;
@@ -26,11 +27,15 @@ pub struct QuestionResult {
 /// Service layer for quiz operations, decoupled from GUI
 pub struct QuizService {
     db: Arc<Database>,
+    evaluator_service: AnswerEvaluatorService,
 }
 
 impl QuizService {
     pub fn new(db: Arc<Database>) -> Self {
-        Self { db }
+        Self {
+            evaluator_service: AnswerEvaluatorService::new(db.clone()),
+            db,
+        }
     }
 
     /// Process a user's answer to a question
@@ -110,17 +115,9 @@ impl QuizService {
                 .is_ok()
             {
                 if let Ok(Some(mut review_item)) = self.db.get_review_item(operation_id) {
-                    // Get time statistics for this operation type
                     let stats = self
-                        .db
-                        .compute_time_statistics(result.operation.operation_type.as_str())
-                        .ok()
-                        .flatten()
-                        .map(|(avg, stdev)| AnswerTimedEvaluator::new(avg, stdev))
-                        .unwrap_or_else(|| {
-                            // Fallback if no historical data exists
-                            AnswerTimedEvaluator::new(3.0, 2.0)
-                        });
+                        .evaluator_service
+                        .get_evaluator(result.operation.operation_type.as_str());
 
                     let quality = stats.evaluate_performance(result.is_correct, result.time_spent);
                     let (reps, interval, ease, next_date) =
@@ -185,17 +182,9 @@ impl QuizService {
                 )
                 .is_ok()
             {
-                // Get time statistics for this operation type
                 let stats = self
-                    .db
-                    .compute_time_statistics(result.operation.operation_type.as_str())
-                    .ok()
-                    .flatten()
-                    .map(|(avg, stdev)| AnswerTimedEvaluator::new(avg, stdev))
-                    .unwrap_or_else(|| {
-                        // Fallback if no historical data exists
-                        AnswerTimedEvaluator::new(3.0, 2.0)
-                    });
+                    .evaluator_service
+                    .get_evaluator(result.operation.operation_type.as_str());
 
                 let quality = stats.evaluate_performance(result.is_correct, result.time_spent);
 

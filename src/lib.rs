@@ -1,3 +1,4 @@
+pub mod answer_evaluator_service;
 pub mod database;
 pub mod database_factory;
 pub mod deck;
