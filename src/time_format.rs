@@ -1,10 +1,5 @@
 use chrono::{DateTime, Utc};
 
-/// Returns the plural suffix for singular/plural formatting
-fn plural_suffix(count: i64) -> &'static str {
-    if count == 1 { "" } else { "s" }
-}
-
 /// Formats the time difference between two datetimes as human-readable text
 ///
 /// Examples:
@@ -18,6 +13,10 @@ fn plural_suffix(count: i64) -> &'static str {
 /// - 3 days from now: "in 3 days"
 /// - 30 days from now: "on 2025-12-10"
 pub fn format_time_difference(now: DateTime<Utc>, future_date: DateTime<Utc>) -> String {
+    fn plural_suffix(count: i64) -> &'static str {
+        if count == 1 { "" } else { "s" }
+    }
+
     let duration = future_date.signed_duration_since(now);
 
     if duration.num_seconds() <= 0 {
