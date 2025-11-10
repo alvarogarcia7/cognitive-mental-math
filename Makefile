@@ -36,7 +36,7 @@ build_and_test: build test ## Build and run tests
 	@echo "✅ Build and tests passed!"
 .PHONY: build_and_test
 
-pre-commit: fmt-check build_and_test  clippy ## Run pre-commit checks
+pre-commit: fmt build_and_test  clippy ## Run pre-commit checks
 	@echo "✅ Pre-commit checks passed!"
 .PHONY: pre-commit
 
