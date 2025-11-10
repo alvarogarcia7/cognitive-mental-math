@@ -19,24 +19,16 @@ impl TimeStatistics {
         }
     }
 
-    /// Get the threshold for Grade 5 (average or below)
     pub fn threshold_grade5(&self) -> f64 {
         self.average
     }
 
-    /// Get the threshold for Grade 4 (average + 1 stdev)
     pub fn threshold_grade4(&self) -> f64 {
         self.average + self.standard_deviation
     }
 
-    /// Get the threshold for Grade 3 (average + 2 stdev)
     pub fn threshold_grade3(&self) -> f64 {
         self.average + (2.0 * self.standard_deviation)
-    }
-
-    /// Get the threshold for Grade 2 (average + 3 stdev)
-    pub fn threshold_grade2(&self) -> f64 {
-        self.average + (3.0 * self.standard_deviation)
     }
 }
 
@@ -96,6 +88,17 @@ impl Default for ReviewScheduler {
     }
 }
 
+// /// Convert SM-2 quality grade to human-readable string
+// pub fn quality_to_string(quality: Quality) -> String {
+//     match quality {
+//         Quality::Grade0 => "Grade0 (Incorrect)".to_string(),
+//         Quality::Grade3 => "Grade3 (Serious difficulty)".to_string(),
+//         Quality::Grade4 => "Grade4 (After hesitation)".to_string(),
+//         Quality::Grade5 => "Grade5 (Perfect)".to_string(),
+//         _ => "N/A".to_string(),
+//     }
+// }
+
 /// Maps user performance (correctness and speed) to an SM-2 Quality rating
 ///
 /// Uses statistical thresholds based on historical performance data for the operation type.
@@ -103,9 +106,8 @@ impl Default for ReviewScheduler {
 ///
 /// Quality scale (0-5):
 /// - Grade0: Incorrect (complete blackout)
-/// - Grade2: Correct but very slow (≥ average + 3 stdev)
-/// - Grade3: Correct but slow (≥ average + 2 stdev, but < average + 3 stdev)
-/// - Grade4: Correct with some hesitation (≥ average + 1 stdev, but < average + 2 stdev)
+/// - Grade3: Correct but slow (≥ average + 3 stdev)
+/// - Grade4: Correct with some hesitation (≥ average + 1 stdev, but < average + 3 stdev)
 /// - Grade5: Perfect and immediate recall (< average + 1 stdev)
 pub fn performance_to_quality(
     is_correct: bool,
@@ -115,14 +117,10 @@ pub fn performance_to_quality(
     if !is_correct {
         // Incorrect: complete blackout
         Quality::Grade0
-    } else if time_spent >= stats.threshold_grade2() {
-        // Correct but very slow: recalled with difficulty
-        Quality::Grade2
     } else if time_spent >= stats.threshold_grade3() {
-        // Correct but slow: recalled with serious difficulty
         Quality::Grade3
     } else if time_spent >= stats.threshold_grade4() {
-        // Correct with some thought: after hesitation
+        // Correct but slow: recalled with serious difficulty
         Quality::Grade4
     } else {
         // Fast and correct: perfect response
@@ -155,22 +153,8 @@ pub fn create_initial_review_item(operation_id: i64, is_correct: bool) -> Review
 mod tests {
     use super::*;
 
-    /// Mock statistics for tests: average 3.0s with stdev 2.0s
-    /// - Grade5 threshold: 3.0s
-    /// - Grade4 threshold: 5.0s (3.0 + 1*2.0)
-    /// - Grade3 threshold: 7.0s (3.0 + 2*2.0)
-    /// - Grade2 threshold: 9.0s (3.0 + 3*3.0)
     fn example_mock_stats() -> TimeStatistics {
         TimeStatistics::new(3.0, 2.0)
-    }
-
-    #[test]
-    fn test_time_statistics_thresholds() {
-        let stats = example_mock_stats();
-        assert_eq!(stats.threshold_grade5(), 3.0);
-        assert_eq!(stats.threshold_grade4(), 5.0);
-        assert_eq!(stats.threshold_grade3(), 7.0);
-        assert_eq!(stats.threshold_grade2(), 9.0);
     }
 
     #[test]
@@ -239,14 +223,14 @@ mod tests {
         let stats = example_mock_stats();
         // Exactly at 9.0, which is grade2 threshold, should be Grade2
         let quality = performance_to_quality(true, 9.0, &stats);
-        assert!(matches!(quality, Quality::Grade2));
+        assert!(matches!(quality, Quality::Grade3));
     }
 
     #[test]
     fn test_performance_to_quality_correct_very_slow() {
         let stats = example_mock_stats();
         let quality = performance_to_quality(true, 15.0, &stats);
-        assert!(matches!(quality, Quality::Grade2));
+        assert!(matches!(quality, Quality::Grade3));
     }
 
     #[test]

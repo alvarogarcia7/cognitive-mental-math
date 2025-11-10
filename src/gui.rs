@@ -281,15 +281,10 @@ impl eframe::App for MemoryPracticeApp {
 
                                     // Display grade if available
                                     if let Some(grade) = result.grade {
-                                        let grade_text = match grade {
-                                            sra::sm_2::Quality::Grade0 => "0",
-                                            sra::sm_2::Quality::Grade1 => "1",
-                                            sra::sm_2::Quality::Grade2 => "2",
-                                            sra::sm_2::Quality::Grade3 => "3",
-                                            sra::sm_2::Quality::Grade4 => "4",
-                                            sra::sm_2::Quality::Grade5 => "5",
-                                        };
-                                        ui.label(format!("Grade: {}", grade_text));
+                                        ui.label(format!(
+                                            "Grade: {}",
+                                            QuizService::quality_to_string(grade)
+                                        ));
                                     }
 
                                     // Display next review date if available

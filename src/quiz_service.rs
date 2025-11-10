@@ -292,14 +292,13 @@ impl QuizService {
     }
 
     /// Convert SM-2 quality grade to human-readable string
-    fn quality_to_string(quality: sra::sm_2::Quality) -> String {
+    pub fn quality_to_string(quality: Quality) -> String {
         match quality {
-            sra::sm_2::Quality::Grade0 => "Grade0 (Incorrect)".to_string(),
-            sra::sm_2::Quality::Grade1 => "Grade1".to_string(),
-            sra::sm_2::Quality::Grade2 => "Grade2 (Difficult)".to_string(),
-            sra::sm_2::Quality::Grade3 => "Grade3 (With difficulty)".to_string(),
-            sra::sm_2::Quality::Grade4 => "Grade4 (After hesitation)".to_string(),
-            sra::sm_2::Quality::Grade5 => "Grade5 (Perfect)".to_string(),
+            Quality::Grade0 => "Grade0 (Incorrect)".to_string(),
+            Quality::Grade3 => "Grade3 (Serious difficulty)".to_string(),
+            Quality::Grade4 => "Grade4 (After hesitation)".to_string(),
+            Quality::Grade5 => "Grade5 (Perfect)".to_string(),
+            _ => "N/A".to_string(),
         }
     }
 }
