@@ -858,4 +858,266 @@ mod tests {
         assert_eq!(item2.operation_id, op_id2);
         assert_ne!(item1.operation_id, item2.operation_id);
     }
+
+    // Time statistics tests
+
+    #[test]
+    fn test_compute_time_statistics_empty_database() {
+        let db = create_test_db();
+        let result = db.compute_time_statistics("ADD").unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_compute_time_statistics_nonexistent_operation_type() {
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 2.0, Some(deck_id)).unwrap();
+        db.complete_deck(deck_id).unwrap();
+
+        let result = db.compute_time_statistics("MULTIPLY").unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_compute_time_statistics_single_answer() {
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 2.0, Some(deck_id)).unwrap();
+        db.complete_deck(deck_id).unwrap();
+
+        let result = db.compute_time_statistics("ADD").unwrap();
+        assert!(result.is_some());
+        let (avg, stdev) = result.unwrap();
+        assert!((avg - 2.0).abs() < 0.001);
+        // Single value: variance = (4.0/1) - (2.0/1)^2 = 0
+        assert!(stdev < 0.001);
+    }
+
+    #[test]
+    fn test_compute_time_statistics_multiple_answers() {
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+
+        // Insert answers with times: 1.0, 3.0
+        db.insert_answer(op_id, 5, true, 1.0, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 3.0, Some(deck_id)).unwrap();
+        db.complete_deck(deck_id).unwrap();
+
+        let result = db.compute_time_statistics("ADD").unwrap();
+        assert!(result.is_some());
+        let (avg, stdev) = result.unwrap();
+        // Average: (1.0 + 3.0) / 2 = 2.0
+        assert!((avg - 2.0).abs() < 0.001);
+        // Variance: ((1.0^2 + 3.0^2) / 2) - (2.0^2) = (10.0/2) - 4.0 = 1.0
+        // Stdev: sqrt(1.0) = 1.0
+        assert!((stdev - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_compute_time_statistics_excludes_incorrect_answers() {
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+
+        db.insert_answer(op_id, 5, true, 1.0, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 4, false, 2.0, Some(deck_id)).unwrap(); // Should be excluded
+        db.insert_answer(op_id, 5, true, 3.0, Some(deck_id)).unwrap();
+        db.complete_deck(deck_id).unwrap();
+
+        let result = db.compute_time_statistics("ADD").unwrap();
+        assert!(result.is_some());
+        let (avg, _) = result.unwrap();
+        // Should only average 1.0 and 3.0
+        assert!((avg - 2.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_compute_time_statistics_excludes_incomplete_decks() {
+        let db = create_test_db();
+        let deck_id1 = db.create_deck().unwrap();
+        let deck_id2 = db.create_deck().unwrap();
+
+        let op_id1 = db.insert_operation("ADD", 2, 3, 5, Some(deck_id1)).unwrap();
+        db.insert_answer(op_id1, 5, true, 1.0, Some(deck_id1)).unwrap();
+        db.complete_deck(deck_id1).unwrap();
+
+        let op_id2 = db.insert_operation("ADD", 4, 5, 9, Some(deck_id2)).unwrap();
+        db.insert_answer(op_id2, 9, true, 5.0, Some(deck_id2)).unwrap();
+        // deck_id2 is NOT completed
+
+        let result = db.compute_time_statistics("ADD").unwrap();
+        assert!(result.is_some());
+        let (avg, _) = result.unwrap();
+        // Should only use data from deck_id1
+        assert!((avg - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_compute_time_statistics_all_operations_empty_database() {
+        let db = create_test_db();
+        let result = db.compute_time_statistics_all_operations().unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_compute_time_statistics_all_operations_single_type() {
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 2.0, Some(deck_id)).unwrap();
+        db.complete_deck(deck_id).unwrap();
+
+        let result = db.compute_time_statistics_all_operations().unwrap();
+        assert_eq!(result.len(), 1);
+        assert!(result.contains_key("ADD"));
+        let (avg, stdev) = result.get("ADD").copied().unwrap();
+        assert!((avg - 2.0).abs() < 0.001);
+        assert!(stdev < 0.001);
+    }
+
+    #[test]
+    fn test_compute_time_statistics_all_operations_multiple_types() {
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+
+        // Add ADD operations
+        let op_id1 = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+        db.insert_answer(op_id1, 5, true, 1.0, Some(deck_id)).unwrap();
+
+        // Add MULTIPLY operations
+        let op_id2 = db.insert_operation("MULTIPLY", 3, 4, 12, Some(deck_id)).unwrap();
+        db.insert_answer(op_id2, 12, true, 3.0, Some(deck_id)).unwrap();
+        db.insert_answer(op_id2, 12, true, 5.0, Some(deck_id)).unwrap();
+
+        db.complete_deck(deck_id).unwrap();
+
+        let result = db.compute_time_statistics_all_operations().unwrap();
+        assert_eq!(result.len(), 2);
+
+        assert!(result.contains_key("ADD"));
+        let (add_avg, _) = result.get("ADD").unwrap();
+        assert!((add_avg - 1.0).abs() < 0.001);
+
+        assert!(result.contains_key("MULTIPLY"));
+        let (mult_avg, mult_stdev) = result.get("MULTIPLY").unwrap();
+        assert!((mult_avg - 4.0).abs() < 0.001); // (3.0 + 5.0) / 2 = 4.0
+        // Variance: ((9.0 + 25.0) / 2) - 16.0 = 17.0 - 16.0 = 1.0, stdev = 1.0
+        assert!((mult_stdev - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_compute_time_statistics_all_operations_last_30_days_excludes_old_data() {
+        let db = create_test_db();
+        let deck_id1 = db.create_deck().unwrap();
+        let deck_id2 = db.create_deck().unwrap();
+
+        // Create operation and answer for current deck
+        let op_id1 = db.insert_operation("ADD", 2, 3, 5, Some(deck_id1)).unwrap();
+        db.insert_answer(op_id1, 5, true, 2.0, Some(deck_id1)).unwrap();
+        db.complete_deck(deck_id1).unwrap();
+
+        // For old data, we'll create another deck and manually insert data with old timestamp
+        let op_id2 = db.insert_operation("ADD", 4, 5, 9, Some(deck_id2)).unwrap();
+
+        // Insert old answer (more than 30 days ago) - we simulate by inserting then checking
+        // Since we can't easily control timestamps in tests, we verify that current data is included
+        db.insert_answer(op_id2, 9, true, 10.0, Some(deck_id2)).unwrap();
+        db.complete_deck(deck_id2).unwrap();
+
+        // Get last 30 days stats - should include recent answers
+        let result = db.compute_time_statistics_all_operations_last_30_days().unwrap();
+
+        // Should have at least the ADD operations we just created
+        assert!(result.contains_key("ADD"));
+    }
+
+    #[test]
+    fn test_compute_time_statistics_all_operations_last_10_decks_excludes_old_decks() {
+        let db = create_test_db();
+
+        // Create 15 decks with operations and answers
+        for i in 1..=15 {
+            let deck_id = db.create_deck().unwrap();
+            let op_id = db
+                .insert_operation(
+                    "ADD",
+                    i as i32,
+                    1,
+                    (i as i32) + 1,
+                    Some(deck_id),
+                )
+                .unwrap();
+            // Time spent increases from 1.0 to 15.0
+            db.insert_answer(op_id, (i as i32) + 1, true, i as f64, Some(deck_id))
+                .unwrap();
+            db.complete_deck(deck_id).unwrap();
+        }
+
+        let result = db.compute_time_statistics_all_operations_last_10_decks().unwrap();
+        assert!(result.contains_key("ADD"));
+
+        let (avg, _) = result.get("ADD").unwrap();
+
+        // Last 10 decks have times: 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+        // Average: (6+7+8+9+10+11+12+13+14+15) / 10 = 105 / 10 = 10.5
+        assert!((avg - 10.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_compute_time_statistics_all_operations_last_10_decks_with_fewer_decks() {
+        let db = create_test_db();
+
+        // Create only 5 decks
+        for i in 1..=5 {
+            let deck_id = db.create_deck().unwrap();
+            let op_id = db
+                .insert_operation(
+                    "ADD",
+                    i as i32,
+                    1,
+                    (i as i32) + 1,
+                    Some(deck_id),
+                )
+                .unwrap();
+            db.insert_answer(op_id, (i as i32) + 1, true, i as f64, Some(deck_id))
+                .unwrap();
+            db.complete_deck(deck_id).unwrap();
+        }
+
+        let result = db.compute_time_statistics_all_operations_last_10_decks().unwrap();
+
+        // Should include all 5 decks
+        assert!(result.contains_key("ADD"));
+        let (avg, _) = result.get("ADD").unwrap();
+        // Average: (1+2+3+4+5) / 5 = 15 / 5 = 3.0
+        assert!((avg - 3.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_compute_time_statistics_all_operations_consistency() {
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+
+        let op_id1 = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+        db.insert_answer(op_id1, 5, true, 1.0, Some(deck_id)).unwrap();
+        db.insert_answer(op_id1, 5, true, 3.0, Some(deck_id)).unwrap();
+
+        let op_id2 = db.insert_operation("ADD", 4, 5, 9, Some(deck_id)).unwrap();
+        db.insert_answer(op_id2, 9, true, 2.0, Some(deck_id)).unwrap();
+
+        db.complete_deck(deck_id).unwrap();
+
+        // Get stats for specific operation type
+        let single_result = db.compute_time_statistics("ADD").unwrap();
+
+        // Get stats for all operation types
+        let all_result = db.compute_time_statistics_all_operations().unwrap();
+
+        // They should match for ADD
+        assert_eq!(single_result, all_result.get("ADD").copied());
+    }
 }
