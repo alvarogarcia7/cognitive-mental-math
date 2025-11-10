@@ -280,10 +280,7 @@ impl eframe::App for MemoryPracticeApp {
 
                                     // Display grade if available
                                     if let Some(grade) = result.grade {
-                                        ui.label(format!(
-                                            "Grade: {}",
-                                            QuizService::quality_to_string(grade)
-                                        ));
+                                        ui.label(QuizService::quality_to_string(grade));
                                     }
 
                                     // Display next review date if available
