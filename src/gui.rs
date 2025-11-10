@@ -283,7 +283,10 @@ impl eframe::App for MemoryPracticeApp {
 
                     ui.add_space(20.0);
 
-                    if ui.button("Start new Deck").clicked() {
+                    let button_clicked = ui.button("Start new Deck").clicked();
+                    let enter_pressed = ui.input(|i| i.key_pressed(egui::Key::Enter));
+
+                    if button_clicked || enter_pressed {
                         self.start_new_block();
                     }
                 }
