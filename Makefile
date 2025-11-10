@@ -70,3 +70,15 @@ install-hooks: ## Install git hooks
 	@echo "Installing git hooks..."
 	@./install-hooks.sh
 .PHONY: install-hooks
+
+demo-scheduler: build ## Run the demo scheduler
+	cargo run --bin sm2_scheduler 3 10 2.5
+	cargo run --bin sm2_scheduler 0 2 2.5
+	cargo run --bin sm2_scheduler 0 3 2.5
+	cargo run --bin sm2_scheduler 1 3 2.5
+	cargo run --bin sm2_scheduler 1 1 2.5
+	cargo run --bin sm2_scheduler 1 0 2.5
+	cargo run --bin sm2_scheduler 2 0 2.5
+	cargo run --bin sm2_scheduler 2 1 2.5
+	cargo run --bin sm2_scheduler 2 3 2.5
+.PHONY: demo-scheduler
