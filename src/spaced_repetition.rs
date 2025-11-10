@@ -13,7 +13,6 @@ pub struct AnswerTimedEvaluator {
 }
 
 impl AnswerTimedEvaluator {
-    /// Create a new AnswerTimedEvaluator with the given timing statistics
     pub fn new(average: f64, standard_deviation: f64) -> Self {
         Self {
             average,
@@ -91,27 +90,6 @@ impl ReviewScheduler {
 impl Default for ReviewScheduler {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// Creates a new ReviewItem with initial SM-2 parameters
-pub fn create_initial_review_item(operation_id: i64, is_correct: bool) -> ReviewItem {
-    let next_review_date = if is_correct {
-        // First review after 1 day if correct
-        Utc::now() + Duration::days(1)
-    } else {
-        // Retry soon if incorrect (10 minutes)
-        Utc::now() + Duration::minutes(10)
-    };
-
-    ReviewItem {
-        id: None,
-        operation_id,
-        repetitions: 0,
-        interval: 0,
-        ease_factor: 2.5,
-        next_review_date,
-        last_reviewed_date: None,
     }
 }
 
@@ -242,43 +220,6 @@ mod tests {
         assert!(ease < 2.5);
     }
 
-    #[test]
-    fn test_create_initial_review_item_correct() {
-        let item = create_initial_review_item(42, true);
-
-        assert_eq!(item.operation_id, 42);
-        assert_eq!(item.repetitions, 0);
-        assert_eq!(item.interval, 0);
-        assert_eq!(item.ease_factor, 2.5);
-        assert!(item.id.is_none());
-
-        // Next review should be about 1 day from now
-        let duration = item.next_review_date - Utc::now();
-        assert!(duration.num_hours() >= 23 && duration.num_hours() <= 25);
-    }
-
-    #[test]
-    fn test_create_initial_review_item_incorrect() {
-        let item = create_initial_review_item(42, false);
-
-        assert_eq!(
-            ReviewItem {
-                id: None,
-                operation_id: 42,
-                repetitions: 0,
-                interval: 0,
-                ease_factor: 2.5,
-                next_review_date: item.next_review_date,
-                last_reviewed_date: None,
-            },
-            item
-        );
-
-        // Next review should be about 10 minutes from now
-        let duration = item.next_review_date - Utc::now();
-        assert!(duration.num_minutes() >= 9 && duration.num_minutes() <= 11);
-    }
-
     // ========== New comprehensive tests ==========
 
     #[test]
@@ -389,14 +330,6 @@ mod tests {
     }
 
     #[test]
-    fn test_create_initial_review_item_different_operation_ids() {
-        for op_id in 1..=10 {
-            let item = create_initial_review_item(op_id, true);
-            assert_eq!(item.operation_id, op_id);
-        }
-    }
-
-    #[test]
     fn test_performance_to_quality_boundary_conditions() {
         let stats = AnswerTimedEvaluator::new(10.0, 5.0);
 
@@ -444,19 +377,6 @@ mod tests {
         assert_eq!(item1.operation_id, item2.operation_id);
         assert_eq!(item1.repetitions, item2.repetitions);
         assert_eq!(item1.interval, item2.interval);
-    }
-
-    #[test]
-    fn test_create_initial_review_item_correct_vs_incorrect_timing() {
-        let correct_item = create_initial_review_item(1, true);
-        let incorrect_item = create_initial_review_item(2, false);
-
-        let correct_duration = correct_item.next_review_date - Utc::now();
-        let incorrect_duration = incorrect_item.next_review_date - Utc::now();
-
-        assert!(correct_duration.num_hours() > incorrect_duration.num_hours() * 10);
-        assert!(correct_duration.num_hours() >= 23 && correct_duration.num_hours() <= 25);
-        assert!(incorrect_duration.num_minutes() >= 9 && incorrect_duration.num_minutes() <= 11);
     }
 
     #[test]

@@ -1,7 +1,7 @@
 use crate::database::Database;
 use crate::deck::DeckSummary;
 use crate::operations::{Operation, OperationType};
-use crate::spaced_repetition::{AnswerTimedEvaluator, ReviewScheduler, create_initial_review_item};
+use crate::spaced_repetition::{AnswerTimedEvaluator, ReviewItem, ReviewScheduler};
 use crate::time_format::format_time_difference;
 use chrono::{DateTime, Utc};
 use log::info;
@@ -198,7 +198,17 @@ impl QuizService {
                     });
 
                 let quality = stats.evaluate_performance(result.is_correct, result.time_spent);
-                let mut review_item = create_initial_review_item(operation_id, result.is_correct);
+
+                // Create a review item with SM-2 defaults and let the scheduler determine timing
+                let mut review_item = ReviewItem {
+                    id: None,
+                    operation_id,
+                    repetitions: 0,
+                    interval: 0,
+                    ease_factor: 2.5,
+                    next_review_date: Utc::now(),
+                    last_reviewed_date: None,
+                };
 
                 let (reps, interval, ease, next_date) =
                     scheduler.process_review(&review_item, quality);
