@@ -566,7 +566,12 @@ impl Database {
         &self,
     ) -> Result<HashMap<String, (i64, i64, f64)>> {
         self.compute_accuracy_all_operations_template(
-            "d.id IN (\n                SELECT id FROM decks\n                WHERE status = 'completed'\n                ORDER BY completed_at DESC\n                LIMIT 10\n            )",
+            r#"d.id IN (
+                SELECT id FROM decks
+                WHERE status = 'completed'
+                ORDER BY completed_at DESC
+                LIMIT 10
+            )"#,
         )
     }
 
@@ -574,7 +579,12 @@ impl Database {
     /// Returns (correct_count, total_count, accuracy_percentage)
     pub fn compute_total_accuracy_last_10_decks(&self) -> Result<(i64, i64, f64)> {
         self.compute_total_accuracy_template(
-            "d.id IN (\n                SELECT id FROM decks\n                WHERE status = 'completed'\n                ORDER BY completed_at DESC\n                LIMIT 10\n            )",
+            r#"d.id IN (
+                SELECT id FROM decks
+                WHERE status = 'completed'
+                ORDER BY completed_at DESC
+                LIMIT 10
+            )"#,
         )
     }
 }
