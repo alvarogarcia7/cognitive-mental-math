@@ -1,33 +1,9 @@
 use crate::deck::{Deck, DeckStatus, DeckSummary};
 use crate::spaced_repetition::ReviewItem;
+use crate::time_format::format_time_until;
 use chrono::{DateTime, Utc};
 use log::debug;
 use rusqlite::{Connection, Result, params};
-
-/// Formats a future datetime as human-readable time until that moment
-fn format_time_until(future_date: DateTime<Utc>) -> String {
-    let now = Utc::now();
-    let duration = future_date.signed_duration_since(now);
-
-    if duration.num_seconds() <= 0 {
-        "now".to_string()
-    } else if duration.num_seconds() < 60 {
-        format!("in {} seconds", duration.num_seconds())
-    } else if duration.num_minutes() < 60 {
-        let mins = duration.num_minutes();
-        format!("in {} minute{}", mins, if mins == 1 { "" } else { "s" })
-    } else if duration.num_hours() < 24 {
-        let hours = duration.num_hours();
-        format!("in {} hour{}", hours, if hours == 1 { "" } else { "s" })
-    } else if duration.num_days() == 1 {
-        "tomorrow".to_string()
-    } else if duration.num_days() < 30 {
-        let days = duration.num_days();
-        format!("in {} day{}", days, if days == 1 { "" } else { "s" })
-    } else {
-        format!("on {}", future_date.format("%Y-%m-%d"))
-    }
-}
 
 pub struct Database {
     conn: Connection,
