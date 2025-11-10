@@ -35,13 +35,13 @@ impl AnswerTimedEvaluator {
             // Incorrect: complete blackout
             Quality::Grade0
         } else if time_spent >= self.average + (3.0 * self.standard_deviation) {
-            // Correct but slow (≥ average + 3σ): serious difficulty recalling
+            // Correct but slow: serious difficulty recalling
             Quality::Grade3
         } else if time_spent >= self.average + self.standard_deviation {
-            // Correct with some hesitation (≥ average + 1σ, < average + 3σ): recalled with hesitation
+            // Correct with some hesitation: recalled with hesitation
             Quality::Grade4
         } else {
-            // Fast and correct (< average + 1σ): perfect response
+            // Fast and correct: perfect response
             Quality::Grade5
         }
     }
