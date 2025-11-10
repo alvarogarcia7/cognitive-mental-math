@@ -5,8 +5,9 @@ use crate::spaced_repetition::{
     ReviewScheduler, TimeStatistics, create_initial_review_item, performance_to_quality,
 };
 use crate::time_format::format_time_difference;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use log::info;
+use sra::sm_2::Quality;
 use std::sync::Arc;
 
 /// Result of answering a single question
@@ -18,6 +19,10 @@ pub struct QuestionResult {
     pub time_spent: f64,
     pub is_review: bool,
     pub original_operation_id: Option<i64>,
+    /// Quality grade assigned to this answer (0-5, None if not yet graded)
+    pub grade: Option<Quality>,
+    /// Next review date for spaced repetition (None if answer not correct or not yet scheduled)
+    pub next_review_date: Option<DateTime<Utc>>,
 }
 
 /// Service layer for quiz operations, decoupled from GUI
@@ -48,12 +53,16 @@ impl QuizService {
             time_spent,
             is_review,
             original_operation_id,
+            grade: None,
+            next_review_date: None,
         }
     }
 
     /// Write all results to database with proper review scheduling
-    pub fn persist_results(&self, results: &[QuestionResult], deck_id: i64) {
+    /// Returns updated results with grade and next_review_date populated
+    pub fn persist_results(&self, results: &[QuestionResult], deck_id: i64) -> Vec<QuestionResult> {
         let scheduler = ReviewScheduler::new();
+        let mut updated_results = Vec::new();
 
         for result in results {
             let question_str = format!(
@@ -65,22 +74,31 @@ impl QuizService {
 
             if result.is_review {
                 // For reviews, update existing operation
-                self.persist_review_result(&scheduler, result, &question_str, deck_id);
+                let updated =
+                    self.persist_review_result(&scheduler, result, &question_str, deck_id);
+                updated_results.push(updated);
             } else {
                 // For new questions, create operation and review item
-                self.persist_new_question_result(&scheduler, result, &question_str, deck_id);
+                let updated =
+                    self.persist_new_question_result(&scheduler, result, &question_str, deck_id);
+                updated_results.push(updated);
             }
         }
+
+        updated_results
     }
 
     /// Persist a review result with updated scheduling
+    /// Returns the result with grade and next_review_date populated
     fn persist_review_result(
         &self,
         scheduler: &ReviewScheduler,
         result: &QuestionResult,
         question_str: &str,
         deck_id: i64,
-    ) {
+    ) -> QuestionResult {
+        let mut updated_result = result.clone();
+
         if let Some(operation_id) = result.original_operation_id {
             if self
                 .db
@@ -130,19 +148,28 @@ impl QuizService {
                     review_item.last_reviewed_date = Some(Utc::now());
 
                     let _ = self.db.update_review_item(&review_item);
+
+                    // Update the result with grade and next review date
+                    updated_result.grade = Some(quality);
+                    updated_result.next_review_date = Some(next_date);
                 }
             }
         }
+
+        updated_result
     }
 
     /// Persist a new question result with initial review scheduling
+    /// Returns the result with grade and next_review_date populated
     fn persist_new_question_result(
         &self,
         scheduler: &ReviewScheduler,
         result: &QuestionResult,
         question_str: &str,
         deck_id: i64,
-    ) {
+    ) -> QuestionResult {
+        let mut updated_result = result.clone();
+
         if let Ok(operation_id) = self.db.insert_operation(
             result.operation.operation_type.as_str(),
             result.operation.operand1,
@@ -198,8 +225,14 @@ impl QuizService {
 
                 let _ = self.db.insert_review_item(operation_id, next_date);
                 let _ = self.db.update_review_item(&review_item);
+
+                // Update the result with grade and next review date
+                updated_result.grade = Some(quality);
+                updated_result.next_review_date = Some(next_date);
             }
         }
+
+        updated_result
     }
 
     /// Complete a deck with summary statistics

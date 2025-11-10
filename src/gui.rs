@@ -1,6 +1,8 @@
 use crate::database::Database;
 use crate::operations::generate_question_block;
 use crate::quiz_service::{QuestionResult, QuizService};
+use crate::time_format::format_time_difference;
+use chrono::Utc;
 use eframe::egui;
 use log::debug;
 use std::sync::Arc;
@@ -78,9 +80,9 @@ impl MemoryPracticeApp {
         }
     }
 
-    fn write_results_to_database(&self) {
+    fn write_results_to_database(&mut self) {
         if let Some(deck_id) = self.current_deck_id {
-            self.service.persist_results(&self.results, deck_id);
+            self.results = self.service.persist_results(&self.results, deck_id);
         }
     }
 
@@ -276,6 +278,26 @@ impl eframe::App for MemoryPracticeApp {
                                     ui.label(format!("(Your answer: {})", result.user_answer));
                                     ui.label(egui::RichText::new(status).color(color).strong());
                                     ui.label(format!("{:.2}s", result.time_spent));
+
+                                    // Display grade if available
+                                    if let Some(grade) = result.grade {
+                                        let grade_text = match grade {
+                                            sra::sm_2::Quality::Grade0 => "0",
+                                            sra::sm_2::Quality::Grade1 => "1",
+                                            sra::sm_2::Quality::Grade2 => "2",
+                                            sra::sm_2::Quality::Grade3 => "3",
+                                            sra::sm_2::Quality::Grade4 => "4",
+                                            sra::sm_2::Quality::Grade5 => "5",
+                                        };
+                                        ui.label(format!("Grade: {}", grade_text));
+                                    }
+
+                                    // Display next review date if available
+                                    if let Some(next_date) = result.next_review_date {
+                                        let time_until =
+                                            format_time_difference(Utc::now(), next_date);
+                                        ui.label(format!("Next: {}", time_until));
+                                    }
                                 });
                             }
                         });
