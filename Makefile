@@ -72,6 +72,7 @@ install-hooks: ## Install git hooks
 .PHONY: install-hooks
 
 demo-scheduler: build ## Run the demo scheduler
+	# repetitions, interval, ease factor
 	cargo run --bin sm2_scheduler 3 10 2.5
 	cargo run --bin sm2_scheduler 0 2 2.5
 	cargo run --bin sm2_scheduler 0 3 2.5
