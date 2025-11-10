@@ -1,17 +1,19 @@
 use chrono::{DateTime, Duration, Utc};
 use sra::sm_2::{Quality, SM2};
 
-/// Statistics about answer times for a specific operation type
+/// Evaluates answer performance based on timing statistics for a specific operation type.
+/// Uses historical data to assign quality grades (0, 3, 4, 5) based on how long
+/// the user took to answer relative to typical performance for that operation type.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct TimeStatistics {
+pub struct AnswerTimedEvaluator {
     /// Average time spent on correct answers (in seconds)
     pub average: f64,
     /// Standard deviation of time spent on correct answers (in seconds)
     pub standard_deviation: f64,
 }
 
-impl TimeStatistics {
-    /// Create a new TimeStatistics
+impl AnswerTimedEvaluator {
+    /// Create a new AnswerTimedEvaluator with the given timing statistics
     pub fn new(average: f64, standard_deviation: f64) -> Self {
         Self {
             average,
@@ -32,34 +34,16 @@ impl TimeStatistics {
         if !is_correct {
             // Incorrect: complete blackout
             Quality::Grade0
-        } else if time_spent >= self.threshold_grade3() {
+        } else if time_spent >= self.average + (3.0 * self.standard_deviation) {
+            // Correct but slow (≥ average + 3σ): serious difficulty recalling
             Quality::Grade3
-        } else if time_spent >= self.threshold_grade4() {
-            // Correct but slow: recalled with serious difficulty
+        } else if time_spent >= self.average + self.standard_deviation {
+            // Correct with some hesitation (≥ average + 1σ, < average + 3σ): recalled with hesitation
             Quality::Grade4
         } else {
-            // Fast and correct: perfect response
+            // Fast and correct (< average + 1σ): perfect response
             Quality::Grade5
         }
-    }
-
-    /// Lower bound of typical performance (average time)
-    /// Used as reference point for quality grading thresholds
-    #[allow(dead_code)]
-    fn threshold_grade5(&self) -> f64 {
-        self.average
-    }
-
-    /// Lower bound for Grade4 (After hesitation): average + 1σ
-    /// Times >= this threshold but < threshold_grade3 are Grade4
-    fn threshold_grade4(&self) -> f64 {
-        self.average + self.standard_deviation
-    }
-
-    /// Lower bound for Grade3 (Serious difficulty): average + 3σ
-    /// Times >= this threshold are Grade3 (slowest responses)
-    fn threshold_grade3(&self) -> f64 {
-        self.average + (3.0 * self.standard_deviation)
     }
 }
 
@@ -155,13 +139,13 @@ pub fn create_initial_review_item(operation_id: i64, is_correct: bool) -> Review
 mod tests {
     use super::*;
 
-    fn example_mock_stats() -> TimeStatistics {
-        TimeStatistics::new(3.0, 2.0)
+    fn example_mock_stats() -> AnswerTimedEvaluator {
+        AnswerTimedEvaluator::new(3.0, 2.0)
     }
 
     #[test]
     fn test_performance_to_quality_incorrect() {
-        let stats = TimeStatistics::new(3.0, 2.0);
+        let stats = AnswerTimedEvaluator::new(3.0, 2.0);
         let quality = stats.evaluate_performance(false, 1.0);
         assert!(matches!(quality, Quality::Grade0));
     }
@@ -183,7 +167,6 @@ mod tests {
     #[test]
     fn test_performance_to_quality_correct_slightly_above_average() {
         let stats = example_mock_stats();
-        // 4.0 is below grade4 threshold (5.0), should be Grade5
         let quality = stats.evaluate_performance(true, 4.0);
         assert!(matches!(quality, Quality::Grade5));
     }
@@ -191,7 +174,6 @@ mod tests {
     #[test]
     fn test_performance_to_quality_correct_one_stdev_above_average() {
         let stats = example_mock_stats();
-        // Exactly at 5.0, which is grade4 threshold, should be Grade4
         let quality = stats.evaluate_performance(true, 5.0);
         assert!(matches!(quality, Quality::Grade4));
     }
@@ -199,7 +181,6 @@ mod tests {
     #[test]
     fn test_performance_to_quality_correct_between_stdev1_and_stdev2() {
         let stats = example_mock_stats();
-        // 6.0 is between 5.0 (grade4 threshold) and 9.0 (grade3 threshold), should be Grade4
         let quality = stats.evaluate_performance(true, 6.0);
         assert!(matches!(quality, Quality::Grade4));
     }
@@ -207,7 +188,6 @@ mod tests {
     #[test]
     fn test_performance_to_quality_correct_two_stdev_above_average() {
         let stats = example_mock_stats();
-        // Exactly at 7.0 (average + 2σ), which is below grade3 threshold (9.0), should be Grade4
         let quality = stats.evaluate_performance(true, 7.0);
         assert!(matches!(quality, Quality::Grade4));
     }
@@ -215,7 +195,6 @@ mod tests {
     #[test]
     fn test_performance_to_quality_correct_between_stdev2_and_stdev3() {
         let stats = example_mock_stats();
-        // 8.0 is between 5.0 (grade4 threshold) and 9.0 (grade3 threshold), should be Grade4
         let quality = stats.evaluate_performance(true, 8.0);
         assert!(matches!(quality, Quality::Grade4));
     }
@@ -223,7 +202,6 @@ mod tests {
     #[test]
     fn test_performance_to_quality_correct_three_stdev_above_average() {
         let stats = example_mock_stats();
-        // Exactly at 9.0 (average + 3σ), which is the grade3 threshold, should be Grade3
         let quality = stats.evaluate_performance(true, 9.0);
         assert!(matches!(quality, Quality::Grade3));
     }
@@ -322,27 +300,6 @@ mod tests {
     }
 
     // ========== New comprehensive tests ==========
-
-    #[test]
-    fn test_time_statistics_edge_cases() {
-        // Test with zero standard deviation
-        let stats_zero_stdev = TimeStatistics::new(5.0, 0.0);
-        assert_eq!(stats_zero_stdev.threshold_grade5(), 5.0);
-        assert_eq!(stats_zero_stdev.threshold_grade4(), 5.0);
-        assert_eq!(stats_zero_stdev.threshold_grade3(), 5.0);
-
-        // Test with very high standard deviation
-        let stats_high_stdev = TimeStatistics::new(2.0, 10.0);
-        assert_eq!(stats_high_stdev.threshold_grade5(), 2.0);
-        assert_eq!(stats_high_stdev.threshold_grade4(), 12.0);
-        assert_eq!(stats_high_stdev.threshold_grade3(), 32.0);
-
-        // Test with very small values
-        let stats_small = TimeStatistics::new(0.5, 0.1);
-        assert_eq!(stats_small.threshold_grade5(), 0.5);
-        assert_eq!(stats_small.threshold_grade4(), 0.6);
-        assert_eq!(stats_small.threshold_grade3(), 0.8);
-    }
 
     #[test]
     fn test_performance_to_quality_grade0_always_incorrect() {
@@ -461,7 +418,7 @@ mod tests {
 
     #[test]
     fn test_performance_to_quality_boundary_conditions() {
-        let stats = TimeStatistics::new(10.0, 5.0);
+        let stats = AnswerTimedEvaluator::new(10.0, 5.0);
 
         // Test exact thresholds
         // Grade5: < 15.0 (average + 1σ)
@@ -484,7 +441,6 @@ mod tests {
             stats.evaluate_performance(true, 25.0),
             Quality::Grade3
         ));
-        // Grade3: also for very slow times
         assert!(matches!(
             stats.evaluate_performance(true, 100.0),
             Quality::Grade3
@@ -518,13 +474,8 @@ mod tests {
         let correct_duration = correct_item.next_review_date - Utc::now();
         let incorrect_duration = incorrect_item.next_review_date - Utc::now();
 
-        // Correct should be scheduled much later than incorrect
         assert!(correct_duration.num_hours() > incorrect_duration.num_hours() * 10);
-
-        // Correct should be ~1 day
         assert!(correct_duration.num_hours() >= 23 && correct_duration.num_hours() <= 25);
-
-        // Incorrect should be ~10 minutes
         assert!(incorrect_duration.num_minutes() >= 9 && incorrect_duration.num_minutes() <= 11);
     }
 
@@ -532,8 +483,6 @@ mod tests {
     fn test_review_scheduler_default_is_new() {
         let default_scheduler = ReviewScheduler::default();
         let new_scheduler = ReviewScheduler::new();
-
-        // Both should produce identical results
         let item = ReviewItem {
             id: Some(1),
             operation_id: 1,

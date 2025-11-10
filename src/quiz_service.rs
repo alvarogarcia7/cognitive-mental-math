@@ -1,7 +1,7 @@
 use crate::database::Database;
 use crate::deck::DeckSummary;
 use crate::operations::{Operation, OperationType};
-use crate::spaced_repetition::{ReviewScheduler, TimeStatistics, create_initial_review_item};
+use crate::spaced_repetition::{AnswerTimedEvaluator, ReviewScheduler, create_initial_review_item};
 use crate::time_format::format_time_difference;
 use chrono::{DateTime, Utc};
 use log::info;
@@ -116,10 +116,10 @@ impl QuizService {
                         .compute_time_statistics(result.operation.operation_type.as_str())
                         .ok()
                         .flatten()
-                        .map(|(avg, stdev)| TimeStatistics::new(avg, stdev))
+                        .map(|(avg, stdev)| AnswerTimedEvaluator::new(avg, stdev))
                         .unwrap_or_else(|| {
                             // Fallback if no historical data exists
-                            TimeStatistics::new(3.0, 2.0)
+                            AnswerTimedEvaluator::new(3.0, 2.0)
                         });
 
                     let quality = stats.evaluate_performance(result.is_correct, result.time_spent);
@@ -191,10 +191,10 @@ impl QuizService {
                     .compute_time_statistics(result.operation.operation_type.as_str())
                     .ok()
                     .flatten()
-                    .map(|(avg, stdev)| TimeStatistics::new(avg, stdev))
+                    .map(|(avg, stdev)| AnswerTimedEvaluator::new(avg, stdev))
                     .unwrap_or_else(|| {
                         // Fallback if no historical data exists
-                        TimeStatistics::new(3.0, 2.0)
+                        AnswerTimedEvaluator::new(3.0, 2.0)
                     });
 
                 let quality = stats.evaluate_performance(result.is_correct, result.time_spent);
