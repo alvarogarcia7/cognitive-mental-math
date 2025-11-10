@@ -290,10 +290,10 @@ impl QuizService {
     /// Convert SM-2 quality grade to human-readable string
     pub fn quality_to_string(quality: Quality) -> String {
         match quality {
-            Quality::Grade0 => "Grade0 (Incorrect)".to_string(),
-            Quality::Grade3 => "Grade3 (Serious difficulty)".to_string(),
-            Quality::Grade4 => "Grade4 (After hesitation)".to_string(),
-            Quality::Grade5 => "Grade5 (Perfect)".to_string(),
+            Quality::Grade0 => "Grade 0 (Incorrect)".to_string(),
+            Quality::Grade3 => "Grade 3 (Serious difficulty)".to_string(),
+            Quality::Grade4 => "Grade 4 (After hesitation)".to_string(),
+            Quality::Grade5 => "Grade 5 (Perfect)".to_string(),
             _ => "N/A".to_string(),
         }
     }
