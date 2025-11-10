@@ -387,11 +387,13 @@ impl Database {
         Ok(result)
     }
 
-    /// Compute time statistics for all operation types (global)
-    /// Returns a map of operation_type -> (average, stdev)
-    pub fn compute_time_statistics_all_operations(&self) -> Result<HashMap<String, (f64, f64)>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT
+    /// Template method for computing time statistics with custom WHERE clauses
+    /// Accepts an optional additional WHERE condition to filter results
+    fn compute_time_statistics_all_operations_template(
+        &self,
+        additional_where: &str,
+    ) -> Result<HashMap<String, (f64, f64)>> {
+        let mut query = "SELECT
                 o.operation_type,
                 COUNT(a.time_spent_seconds) as count,
                 AVG(a.time_spent_seconds) as average,
@@ -401,12 +403,24 @@ impl Database {
             INNER JOIN operations o ON a.operation_id = o.id
             INNER JOIN decks d ON a.deck_id = d.id
             WHERE a.is_correct = 1
-            AND d.status = 'completed'
-            GROUP BY o.operation_type
-            ORDER BY o.operation_type",
-        )?;
+            AND d.status = 'completed'"
+            .to_string();
 
+        if !additional_where.is_empty() {
+            query.push_str("\n            ");
+            query.push_str(additional_where);
+        }
+
+        query.push_str("\n            GROUP BY o.operation_type\n            ORDER BY o.operation_type");
+
+        let mut stmt = self.conn.prepare(&query)?;
         Self::process_statistics_query(&mut stmt)
+    }
+
+    /// Compute time statistics for all operation types (global)
+    /// Returns a map of operation_type -> (average, stdev)
+    pub fn compute_time_statistics_all_operations(&self) -> Result<HashMap<String, (f64, f64)>> {
+        self.compute_time_statistics_all_operations_template("")
     }
 
     /// Compute time statistics for all operation types in the last 30 days
@@ -414,24 +428,9 @@ impl Database {
     pub fn compute_time_statistics_all_operations_last_30_days(
         &self,
     ) -> Result<HashMap<String, (f64, f64)>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT
-                o.operation_type,
-                COUNT(a.time_spent_seconds) as count,
-                AVG(a.time_spent_seconds) as average,
-                SUM(a.time_spent_seconds * a.time_spent_seconds) as sum_squares,
-                SUM(a.time_spent_seconds) as total_sum
-            FROM answers a
-            INNER JOIN operations o ON a.operation_id = o.id
-            INNER JOIN decks d ON a.deck_id = d.id
-            WHERE a.is_correct = 1
-            AND d.status = 'completed'
-            AND a.created_at >= datetime('now', '-30 days')
-            GROUP BY o.operation_type
-            ORDER BY o.operation_type",
-        )?;
-
-        Self::process_statistics_query(&mut stmt)
+        self.compute_time_statistics_all_operations_template(
+            "AND a.created_at >= datetime('now', '-30 days')",
+        )
     }
 
     /// Compute time statistics for all operation types from the last 10 completed decks
@@ -439,29 +438,9 @@ impl Database {
     pub fn compute_time_statistics_all_operations_last_10_decks(
         &self,
     ) -> Result<HashMap<String, (f64, f64)>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT
-                o.operation_type,
-                COUNT(a.time_spent_seconds) as count,
-                AVG(a.time_spent_seconds) as average,
-                SUM(a.time_spent_seconds * a.time_spent_seconds) as sum_squares,
-                SUM(a.time_spent_seconds) as total_sum
-            FROM answers a
-            INNER JOIN operations o ON a.operation_id = o.id
-            INNER JOIN decks d ON a.deck_id = d.id
-            WHERE a.is_correct = 1
-            AND d.status = 'completed'
-            AND d.id IN (
-                SELECT id FROM decks
-                WHERE status = 'completed'
-                ORDER BY completed_at DESC
-                LIMIT 10
-            )
-            GROUP BY o.operation_type
-            ORDER BY o.operation_type",
-        )?;
-
-        Self::process_statistics_query(&mut stmt)
+        self.compute_time_statistics_all_operations_template(
+            "AND d.id IN (\n                SELECT id FROM decks\n                WHERE status = 'completed'\n                ORDER BY completed_at DESC\n                LIMIT 10\n            )",
+        )
     }
 }
 
