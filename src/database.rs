@@ -465,8 +465,7 @@ impl Database {
         &self,
         additional_where: &str,
     ) -> Result<HashMap<String, (i64, i64, f64)>> {
-        let query = if additional_where.is_empty() {
-            r#"SELECT
+        let mut query = r#"SELECT
                 o.operation_type,
                 COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
                 COUNT(a.id) as total_count,
@@ -475,51 +474,18 @@ impl Database {
             FROM answers a
             INNER JOIN operations o ON a.operation_id = o.id
             INNER JOIN decks d ON a.deck_id = d.id
-            WHERE d.status = 'completed'
-            GROUP BY o.operation_type
-            ORDER BY o.operation_type"#
-        } else {
-            return self.compute_accuracy_all_operations_with_filter(additional_where);
-        };
+            WHERE d.status = 'completed'"#
+            .to_string();
 
-        let mut stmt = self.conn.prepare(query)?;
-        let mut result = HashMap::new();
-        let rows = stmt.query_map([], |row| {
-            let op_type: String = row.get(0)?;
-            let correct_count: i64 = row.get(1)?;
-            let total_count: i64 = row.get(2)?;
-            let accuracy: f64 = row.get(3)?;
-            Ok((op_type, (correct_count, total_count, accuracy)))
-        })?;
-
-        for row in rows {
-            let (op_type, stats) = row?;
-            result.insert(op_type, stats);
+        if !additional_where.is_empty() {
+            query.push_str("\n            AND ");
+            query.push_str(additional_where);
         }
 
-        Ok(result)
-    }
-
-    /// Helper method to compute accuracy with a custom WHERE filter for per-operation-type stats
-    fn compute_accuracy_all_operations_with_filter(
-        &self,
-        additional_where: &str,
-    ) -> Result<HashMap<String, (i64, i64, f64)>> {
-        let query = format!(
-            "SELECT
-                o.operation_type,
-                COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
-                COUNT(a.id) as total_count,
-                CAST(COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) AS FLOAT) /
-                COUNT(a.id) * 100.0 as accuracy_percentage
-            FROM answers a
-            INNER JOIN operations o ON a.operation_id = o.id
-            INNER JOIN decks d ON a.deck_id = d.id
-            WHERE d.status = 'completed'
-            AND {}
+        query.push_str(
+            r#"
             GROUP BY o.operation_type
-            ORDER BY o.operation_type",
-            additional_where
+            ORDER BY o.operation_type"#,
         );
 
         let mut stmt = self.conn.prepare(&query)?;
@@ -542,8 +508,7 @@ impl Database {
 
     /// Template method for computing total accuracy with custom WHERE clauses
     fn compute_total_accuracy_template(&self, additional_where: &str) -> Result<(i64, i64, f64)> {
-        let query = if additional_where.is_empty() {
-            r#"SELECT
+        let mut query = r#"SELECT
                 COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
                 COUNT(a.id) as total_count,
                 CAST(COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) AS FLOAT) /
@@ -551,38 +516,12 @@ impl Database {
             FROM answers a
             INNER JOIN decks d ON a.deck_id = d.id
             WHERE d.status = 'completed'"#
-        } else {
-            return self.compute_total_accuracy_with_filter(additional_where);
-        };
+            .to_string();
 
-        let mut stmt = self.conn.prepare(query)?;
-        let result = stmt.query_row([], |row| {
-            let correct_count: i64 = row.get(0)?;
-            let total_count: i64 = row.get(1)?;
-            let accuracy: f64 = row.get(2)?;
-            Ok((correct_count, total_count, accuracy))
-        })?;
-
-        Ok(result)
-    }
-
-    /// Helper method to compute total accuracy with a custom WHERE filter
-    fn compute_total_accuracy_with_filter(
-        &self,
-        additional_where: &str,
-    ) -> Result<(i64, i64, f64)> {
-        let query = format!(
-            "SELECT
-                COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
-                COUNT(a.id) as total_count,
-                CAST(COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) AS FLOAT) /
-                COUNT(a.id) * 100.0 as accuracy_percentage
-            FROM answers a
-            INNER JOIN decks d ON a.deck_id = d.id
-            WHERE d.status = 'completed'
-            AND {}",
-            additional_where
-        );
+        if !additional_where.is_empty() {
+            query.push_str("\n            AND ");
+            query.push_str(additional_where);
+        }
 
         let mut stmt = self.conn.prepare(&query)?;
         let result = stmt.query_row([], |row| {
