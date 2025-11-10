@@ -1,4 +1,5 @@
 use crate::deck::{Deck, DeckStatus, DeckSummary};
+use crate::row_factories::{DeckRowFactory, ReviewItemRowFactory};
 use crate::spaced_repetition::ReviewItem;
 use crate::time_format::format_time_difference;
 use chrono::{DateTime, Utc};
@@ -239,19 +240,7 @@ impl Database {
         let mut rows = stmt.query([deck_id])?;
 
         if let Some(row) = rows.next()? {
-            Ok(Some(Deck {
-                id: row.get(0)?,
-                created_at: row.get(1)?,
-                completed_at: row.get(2)?,
-                status: DeckStatus::from(&row.get::<_, String>(3)?)
-                    .unwrap_or(DeckStatus::InProgress),
-                total_questions: row.get(4)?,
-                correct_answers: row.get(5)?,
-                incorrect_answers: row.get(6)?,
-                total_time_seconds: row.get(7)?,
-                average_time_seconds: row.get(8)?,
-                accuracy_percentage: row.get(9)?,
-            }))
+            Ok(Some(DeckRowFactory::from_row(row)?))
         } else {
             Ok(None)
         }
@@ -306,21 +295,7 @@ impl Database {
              LIMIT ?1",
         )?;
 
-        let rows = stmt.query_map([limit], |row| {
-            Ok(Deck {
-                id: row.get(0)?,
-                created_at: row.get(1)?,
-                completed_at: row.get(2)?,
-                status: DeckStatus::from(&row.get::<_, String>(3)?)
-                    .unwrap_or(DeckStatus::InProgress),
-                total_questions: row.get(4)?,
-                correct_answers: row.get(5)?,
-                incorrect_answers: row.get(6)?,
-                total_time_seconds: row.get(7)?,
-                average_time_seconds: row.get(8)?,
-                accuracy_percentage: row.get(9)?,
-            })
-        })?;
+        let rows = stmt.query_map([limit], DeckRowFactory::from_row)?;
 
         let mut decks = Vec::new();
         for deck_result in rows {
@@ -397,21 +372,7 @@ impl Database {
         let mut rows = stmt.query([operation_id])?;
 
         if let Some(row) = rows.next()? {
-            Ok(Some(ReviewItem {
-                id: row.get(0)?,
-                operation_id: row.get(1)?,
-                repetitions: row.get(2)?,
-                interval: row.get(3)?,
-                ease_factor: row.get(4)?,
-                next_review_date: DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
-                    .unwrap()
-                    .with_timezone(&Utc),
-                last_reviewed_date: row.get::<_, Option<String>>(6)?.map(|s| {
-                    DateTime::parse_from_rfc3339(&s)
-                        .unwrap()
-                        .with_timezone(&Utc)
-                }),
-            }))
+            Ok(Some(ReviewItemRowFactory::from_row(row)?))
         } else {
             Ok(None)
         }
@@ -427,23 +388,7 @@ impl Database {
              ORDER BY next_review_date ASC",
         )?;
 
-        let items = stmt.query_map([&before_str], |row| {
-            Ok(ReviewItem {
-                id: row.get(0)?,
-                operation_id: row.get(1)?,
-                repetitions: row.get(2)?,
-                interval: row.get(3)?,
-                ease_factor: row.get(4)?,
-                next_review_date: DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
-                    .unwrap()
-                    .with_timezone(&Utc),
-                last_reviewed_date: row.get::<_, Option<String>>(6)?.map(|s| {
-                    DateTime::parse_from_rfc3339(&s)
-                        .unwrap()
-                        .with_timezone(&Utc)
-                }),
-            })
-        })?;
+        let items = stmt.query_map([&before_str], ReviewItemRowFactory::from_row)?;
 
         let mut result = Vec::new();
         for item in items {

@@ -4,5 +4,6 @@ pub mod deck;
 pub mod gui;
 pub mod operations;
 pub mod quiz_service;
+pub mod row_factories;
 pub mod spaced_repetition;
 pub mod time_format;
