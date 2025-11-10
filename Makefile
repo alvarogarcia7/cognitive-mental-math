@@ -16,15 +16,15 @@ test: build ## Run all tests
 
 run: ## Run the application
 	@echo "Running application..."
-	RUST_LOG=info cargo run
+	RUST_LOG=info cargo run --bin memory_practice
 .PHONY: run
 
 run-dev-memory: build ## Run the application in test mode (in-memory database)
-	RUST_LOG=debug cargo run -- --test --database :mem:
+	RUST_LOG=debug cargo run --bin memory_practice -- --test --database :mem:
 .PHONY: run-dev-memory
 
 run-dev: build ## Run the application in test mode
-	RUST_LOG=debug cargo run -- --test --db-path custom.db
+	RUST_LOG=debug cargo run --bin memory_practice -- --test --db-path custom.db
 .PHONY: run-dev
 
 clean: ## Clean build artifacts
