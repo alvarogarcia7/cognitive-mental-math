@@ -14,7 +14,17 @@ impl Database {
     pub fn new(db_path: &str) -> Result<Self> {
         let conn = Connection::open(db_path)?;
 
-        conn.execute(
+        // Run all migrations
+        Self::run_migrations(&conn)?;
+
+        Ok(Database { conn })
+    }
+
+    /// Run all database migrations
+    /// Migrations are organized in this function to keep schema definitions clear
+    fn run_migrations(conn: &Connection) -> Result<()> {
+        // Migration 001: Initial schema
+        conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS operations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 operation_type TEXT NOT NULL,
@@ -22,12 +32,8 @@ impl Database {
                 operand2 INTEGER NOT NULL,
                 result INTEGER NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )",
-            [],
-        )?;
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS answers (
+            );
+            CREATE TABLE IF NOT EXISTS answers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 operation_id INTEGER NOT NULL,
                 user_answer INTEGER NOT NULL,
@@ -35,13 +41,8 @@ impl Database {
                 time_spent_seconds REAL NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (operation_id) REFERENCES operations(id)
-            )",
-            [],
-        )?;
-
-        // Create decks table
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS decks (
+            );
+            CREATE TABLE IF NOT EXISTS decks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 completed_at DATETIME,
@@ -52,12 +53,22 @@ impl Database {
                 total_time_seconds REAL NOT NULL DEFAULT 0.0,
                 average_time_seconds REAL,
                 accuracy_percentage REAL
-            )",
-            [],
+            );
+            CREATE TABLE IF NOT EXISTS review_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                operation_id INTEGER UNIQUE NOT NULL,
+                repetitions INTEGER NOT NULL DEFAULT 0,
+                interval INTEGER NOT NULL DEFAULT 0,
+                ease_factor REAL NOT NULL DEFAULT 2.5,
+                next_review_date TEXT NOT NULL,
+                last_reviewed_date TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (operation_id) REFERENCES operations(id)
+            );",
         )?;
 
-        // Add deck_id columns using ALTER TABLE (safe for existing databases)
-        // SQLite doesn't have ALTER TABLE IF NOT EXISTS for columns, so we need to check
+        // Migration 002: Add deck_id columns
+        // Use pragma to check if column exists before adding
         let has_deck_id_in_operations: bool = conn
             .prepare("SELECT COUNT(*) FROM pragma_table_info('operations') WHERE name='deck_id'")?
             .query_row([], |row| row.get::<_, i64>(0))
@@ -82,49 +93,17 @@ impl Database {
             )?;
         }
 
-        // Create indexes
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_deck_operations ON operations(deck_id)",
-            [],
+        // Migration 003: Create indexes
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_deck_operations ON operations(deck_id);
+             CREATE INDEX IF NOT EXISTS idx_deck_answers ON answers(deck_id);
+             CREATE INDEX IF NOT EXISTS idx_deck_status ON decks(status);
+             CREATE INDEX IF NOT EXISTS idx_deck_created ON decks(created_at DESC);
+             CREATE INDEX IF NOT EXISTS idx_next_review ON review_items(next_review_date);",
         )?;
 
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_deck_answers ON answers(deck_id)",
-            [],
-        )?;
-
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_deck_status ON decks(status)",
-            [],
-        )?;
-
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_deck_created ON decks(created_at DESC)",
-            [],
-        )?;
-
-        // Create review_items table for spaced repetition
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS review_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                operation_id INTEGER UNIQUE NOT NULL,
-                repetitions INTEGER NOT NULL DEFAULT 0,
-                interval INTEGER NOT NULL DEFAULT 0,
-                ease_factor REAL NOT NULL DEFAULT 2.5,
-                next_review_date TEXT NOT NULL,
-                last_reviewed_date TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (operation_id) REFERENCES operations(id)
-            )",
-            [],
-        )?;
-
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_next_review ON review_items(next_review_date)",
-            [],
-        )?;
-
-        Ok(Database { conn })
+        debug!("All migrations completed successfully");
+        Ok(())
     }
 
     pub fn insert_operation(

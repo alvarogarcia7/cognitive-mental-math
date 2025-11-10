@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 eframe = "0.29"
 rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
+refinery = { version = "0.8", features = ["rusqlite"] }
 rand = "0.8"
 chrono = "0.4"
 sra = "0.1"
