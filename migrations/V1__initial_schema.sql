@@ -1,3 +1,6 @@
+-- Initial database schema
+-- Contains all tables, columns, and indexes for the memory practice application
+
 -- Create operations table
 CREATE TABLE IF NOT EXISTS operations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -5,7 +8,8 @@ CREATE TABLE IF NOT EXISTS operations (
     operand1 INTEGER NOT NULL,
     operand2 INTEGER NOT NULL,
     result INTEGER NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deck_id INTEGER REFERENCES decks(id)
 );
 
 -- Create answers table
@@ -16,6 +20,7 @@ CREATE TABLE IF NOT EXISTS answers (
     is_correct INTEGER NOT NULL,
     time_spent_seconds REAL NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deck_id INTEGER REFERENCES decks(id),
     FOREIGN KEY (operation_id) REFERENCES operations(id)
 );
 
@@ -45,3 +50,10 @@ CREATE TABLE IF NOT EXISTS review_items (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (operation_id) REFERENCES operations(id)
 );
+
+-- Create indexes for performance optimization
+CREATE INDEX IF NOT EXISTS idx_deck_operations ON operations(deck_id);
+CREATE INDEX IF NOT EXISTS idx_deck_answers ON answers(deck_id);
+CREATE INDEX IF NOT EXISTS idx_deck_status ON decks(status);
+CREATE INDEX IF NOT EXISTS idx_deck_created ON decks(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_next_review ON review_items(next_review_date);

@@ -6,104 +6,29 @@ use chrono::{DateTime, Utc};
 use log::debug;
 use rusqlite::{Connection, Result, params};
 
+// Embed migrations from the migrations directory
+refinery::embed_migrations!("migrations");
+
 pub struct Database {
     conn: Connection,
 }
 
 impl Database {
     pub fn new(db_path: &str) -> Result<Self> {
-        let conn = Connection::open(db_path)?;
+        let mut conn = Connection::open(db_path)?;
 
-        // Run all migrations
-        Self::run_migrations(&conn)?;
+        // Run embedded migrations from the migrations folder
+        match migrations::runner().run(&mut conn) {
+            Ok(_) => {
+                debug!("Migrations completed successfully");
+            }
+            Err(e) => {
+                eprintln!("Refinery migration error: {}", e);
+                return Err(rusqlite::Error::ExecuteReturnedResults);
+            }
+        }
 
         Ok(Database { conn })
-    }
-
-    /// Run all database migrations
-    /// Migrations are organized in this function to keep schema definitions clear
-    fn run_migrations(conn: &Connection) -> Result<()> {
-        // Migration 001: Initial schema
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS operations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                operation_type TEXT NOT NULL,
-                operand1 INTEGER NOT NULL,
-                operand2 INTEGER NOT NULL,
-                result INTEGER NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS answers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                operation_id INTEGER NOT NULL,
-                user_answer INTEGER NOT NULL,
-                is_correct INTEGER NOT NULL,
-                time_spent_seconds REAL NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (operation_id) REFERENCES operations(id)
-            );
-            CREATE TABLE IF NOT EXISTS decks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                completed_at DATETIME,
-                status TEXT NOT NULL DEFAULT 'in_progress',
-                total_questions INTEGER NOT NULL DEFAULT 0,
-                correct_answers INTEGER NOT NULL DEFAULT 0,
-                incorrect_answers INTEGER NOT NULL DEFAULT 0,
-                total_time_seconds REAL NOT NULL DEFAULT 0.0,
-                average_time_seconds REAL,
-                accuracy_percentage REAL
-            );
-            CREATE TABLE IF NOT EXISTS review_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                operation_id INTEGER UNIQUE NOT NULL,
-                repetitions INTEGER NOT NULL DEFAULT 0,
-                interval INTEGER NOT NULL DEFAULT 0,
-                ease_factor REAL NOT NULL DEFAULT 2.5,
-                next_review_date TEXT NOT NULL,
-                last_reviewed_date TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (operation_id) REFERENCES operations(id)
-            );",
-        )?;
-
-        // Migration 002: Add deck_id columns
-        // Use pragma to check if column exists before adding
-        let has_deck_id_in_operations: bool = conn
-            .prepare("SELECT COUNT(*) FROM pragma_table_info('operations') WHERE name='deck_id'")?
-            .query_row([], |row| row.get::<_, i64>(0))
-            .map(|count| count > 0)?;
-
-        if !has_deck_id_in_operations {
-            conn.execute(
-                "ALTER TABLE operations ADD COLUMN deck_id INTEGER REFERENCES decks(id)",
-                [],
-            )?;
-        }
-
-        let has_deck_id_in_answers: bool = conn
-            .prepare("SELECT COUNT(*) FROM pragma_table_info('answers') WHERE name='deck_id'")?
-            .query_row([], |row| row.get::<_, i64>(0))
-            .map(|count| count > 0)?;
-
-        if !has_deck_id_in_answers {
-            conn.execute(
-                "ALTER TABLE answers ADD COLUMN deck_id INTEGER REFERENCES decks(id)",
-                [],
-            )?;
-        }
-
-        // Migration 003: Create indexes
-        conn.execute_batch(
-            "CREATE INDEX IF NOT EXISTS idx_deck_operations ON operations(deck_id);
-             CREATE INDEX IF NOT EXISTS idx_deck_answers ON answers(deck_id);
-             CREATE INDEX IF NOT EXISTS idx_deck_status ON decks(status);
-             CREATE INDEX IF NOT EXISTS idx_deck_created ON decks(created_at DESC);
-             CREATE INDEX IF NOT EXISTS idx_next_review ON review_items(next_review_date);",
-        )?;
-
-        debug!("All migrations completed successfully");
-        Ok(())
     }
 
     pub fn insert_operation(
