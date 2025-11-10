@@ -1,6 +1,6 @@
 use crate::deck::{Deck, DeckStatus, DeckSummary};
 use crate::spaced_repetition::ReviewItem;
-use crate::time_format::format_time_until;
+use crate::time_format::format_time_difference;
 use chrono::{DateTime, Utc};
 use log::debug;
 use rusqlite::{Connection, Result, params};
@@ -347,7 +347,7 @@ impl Database {
         debug!(
             "Creating new review item for operation_id={}, next review: {}",
             operation_id,
-            format_time_until(next_review_date)
+            format_time_difference(Utc::now(), next_review_date)
         );
         self.conn.execute(
             "INSERT INTO review_items (operation_id, next_review_date)
@@ -367,7 +367,7 @@ impl Database {
             item.repetitions,
             item.interval,
             item.ease_factor,
-            format_time_until(item.next_review_date)
+            format_time_difference(Utc::now(), item.next_review_date)
         );
 
         self.conn.execute(

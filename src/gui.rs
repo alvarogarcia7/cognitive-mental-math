@@ -4,7 +4,7 @@ use crate::operations::{Operation, OperationType, generate_question_block};
 use crate::spaced_repetition::{
     ReviewScheduler, create_initial_review_item, performance_to_quality,
 };
-use crate::time_format::format_time_until;
+use crate::time_format::format_time_difference;
 use chrono::Utc;
 use eframe::egui;
 use log::{debug, info};
@@ -148,7 +148,7 @@ impl MemoryPracticeApp {
                                     "Review: {} | Quality: {} | Next review: {} | Reps: {}, Interval: {} days, Ease: {:.2}",
                                     question_str,
                                     quality_str,
-                                    format_time_until(next_date),
+                                    format_time_difference(Utc::now(), next_date),
                                     reps,
                                     interval,
                                     ease
@@ -208,7 +208,7 @@ impl MemoryPracticeApp {
                                 "New question: {} | Quality: {} | First review: {} | Reps: {}, Interval: {} days, Ease: {:.2}",
                                 question_str,
                                 quality_str,
-                                format_time_until(next_date),
+                                format_time_difference(Utc::now(), next_date),
                                 reps,
                                 interval,
                                 ease
