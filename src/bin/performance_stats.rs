@@ -57,6 +57,43 @@ fn main() {
         }
     };
 
+    // Fetch accuracy statistics
+    let global_accuracy_stats = match db.compute_accuracy_all_operations() {
+        Ok(stats) => stats,
+        Err(e) => {
+            eprintln!("Error fetching global accuracy statistics: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let last_30_days_accuracy_stats = match db.compute_accuracy_all_operations_last_30_days() {
+        Ok(stats) => stats,
+        Err(e) => {
+            eprintln!("Error fetching last 30 days accuracy statistics: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let last_10_decks_accuracy_stats = match db.compute_accuracy_all_operations_last_10_decks() {
+        Ok(stats) => stats,
+        Err(e) => {
+            eprintln!("Error fetching last 10 decks accuracy statistics: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    // Fetch total accuracy
+    let total_accuracy = match db.compute_total_accuracy() {
+        Ok(stats) => stats,
+        Err(e) => {
+            eprintln!("Error fetching total accuracy: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let total_accuracy_last_30_days = db.compute_total_accuracy_last_30_days().unwrap_or((0, 0, 0.0));
+    let total_accuracy_last_10_decks = db.compute_total_accuracy_last_10_decks().unwrap_or((0, 0, 0.0));
+
     println!("Performance Analysis Report");
     println!("===========================");
     println!();
@@ -68,12 +105,24 @@ fn main() {
     for op_type in operation_types {
         println!("Operation Type: {}", op_type);
         println!("{}", "-".repeat(60));
-        println!("Time Statistics (in seconds):");
 
         // Look up statistics for this operation type
         let global = global_stats.get(&op_type).copied();
         let last_30 = last_30_days_stats.get(&op_type).copied();
         let last_10 = last_10_decks_stats.get(&op_type).copied();
+
+        let global_accuracy = global_accuracy_stats.get(&op_type).copied();
+        let last_30_accuracy = last_30_days_accuracy_stats.get(&op_type).copied();
+        let last_10_accuracy = last_10_decks_accuracy_stats.get(&op_type).copied();
+
+        // Print completion stats
+        println!("Completed Operations:");
+        print_accuracy_stats("Global (all time)", &global_accuracy);
+        print_accuracy_stats("Last 30 days", &last_30_accuracy);
+        print_accuracy_stats("Last 10 decks", &last_10_accuracy);
+
+        println!();
+        println!("Time Statistics (in seconds):");
 
         // Print global stats
         print_stats("Global (all time)", &global);
@@ -109,6 +158,20 @@ fn main() {
 
         println!();
     }
+
+    // Print overall accuracy statistics
+    println!();
+    println!("Overall Accuracy Statistics");
+    println!("===========================");
+    println!();
+    println!("Total Completed Operations:");
+    print_accuracy_stats("Global (all time)", &Some(total_accuracy));
+    if total_accuracy_last_30_days.1 > 0 {
+        print_accuracy_stats("Last 30 days", &Some(total_accuracy_last_30_days));
+    }
+    if total_accuracy_last_10_decks.1 > 0 {
+        print_accuracy_stats("Last 10 decks", &Some(total_accuracy_last_10_decks));
+    }
 }
 
 /// Print statistics for a given time period
@@ -118,6 +181,21 @@ fn print_stats(label: &str, stats: &Option<AnswerTimedEvaluator>) {
             println!(
                 "  {} - Average: {:.3}s, Std Dev: {:.3}s",
                 label, eval.average, eval.standard_deviation
+            );
+        }
+        None => {
+            println!("  {} - No data available", label);
+        }
+    }
+}
+
+/// Print accuracy statistics
+fn print_accuracy_stats(label: &str, stats: &Option<(i64, i64, f64)>) {
+    match stats {
+        Some((correct, total, accuracy)) => {
+            println!(
+                "  {} - {}/{} correct ({:.1}%)",
+                label, correct, total, accuracy
             );
         }
         None => {

@@ -459,6 +459,201 @@ impl Database {
         )"#;
         self.compute_time_statistics_all_operations_template(x)
     }
+
+    /// Compute accuracy statistics for all operation types (global)
+    /// Returns a map of operation_type -> (correct_count, total_count, accuracy_percentage)
+    pub fn compute_accuracy_all_operations(&self) -> Result<HashMap<String, (i64, i64, f64)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT
+                o.operation_type,
+                COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
+                COUNT(a.id) as total_count,
+                CAST(COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) AS FLOAT) /
+                COUNT(a.id) * 100.0 as accuracy_percentage
+            FROM answers a
+            INNER JOIN operations o ON a.operation_id = o.id
+            INNER JOIN decks d ON a.deck_id = d.id
+            WHERE d.status = 'completed'
+            GROUP BY o.operation_type
+            ORDER BY o.operation_type",
+        )?;
+
+        let mut result = HashMap::new();
+        let rows = stmt.query_map([], |row| {
+            let op_type: String = row.get(0)?;
+            let correct_count: i64 = row.get(1)?;
+            let total_count: i64 = row.get(2)?;
+            let accuracy: f64 = row.get(3)?;
+            Ok((op_type, (correct_count, total_count, accuracy)))
+        })?;
+
+        for row in rows {
+            let (op_type, stats) = row?;
+            result.insert(op_type, stats);
+        }
+
+        Ok(result)
+    }
+
+    /// Compute total accuracy for all operations (global)
+    /// Returns (correct_count, total_count, accuracy_percentage)
+    pub fn compute_total_accuracy(&self) -> Result<(i64, i64, f64)> {
+        let mut stmt = self.conn.prepare(
+            "SELECT
+                COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
+                COUNT(a.id) as total_count,
+                CAST(COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) AS FLOAT) /
+                COUNT(a.id) * 100.0 as accuracy_percentage
+            FROM answers a
+            INNER JOIN decks d ON a.deck_id = d.id
+            WHERE d.status = 'completed'",
+        )?;
+
+        let result = stmt.query_row([], |row| {
+            let correct_count: i64 = row.get(0)?;
+            let total_count: i64 = row.get(1)?;
+            let accuracy: f64 = row.get(2)?;
+            Ok((correct_count, total_count, accuracy))
+        })?;
+
+        Ok(result)
+    }
+
+    /// Compute accuracy statistics for all operation types in the last 30 days
+    /// Returns a map of operation_type -> (correct_count, total_count, accuracy_percentage)
+    pub fn compute_accuracy_all_operations_last_30_days(
+        &self,
+    ) -> Result<HashMap<String, (i64, i64, f64)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT
+                o.operation_type,
+                COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
+                COUNT(a.id) as total_count,
+                CAST(COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) AS FLOAT) /
+                COUNT(a.id) * 100.0 as accuracy_percentage
+            FROM answers a
+            INNER JOIN operations o ON a.operation_id = o.id
+            INNER JOIN decks d ON a.deck_id = d.id
+            WHERE d.status = 'completed'
+            AND a.created_at >= datetime('now', '-30 days')
+            GROUP BY o.operation_type
+            ORDER BY o.operation_type",
+        )?;
+
+        let mut result = HashMap::new();
+        let rows = stmt.query_map([], |row| {
+            let op_type: String = row.get(0)?;
+            let correct_count: i64 = row.get(1)?;
+            let total_count: i64 = row.get(2)?;
+            let accuracy: f64 = row.get(3)?;
+            Ok((op_type, (correct_count, total_count, accuracy)))
+        })?;
+
+        for row in rows {
+            let (op_type, stats) = row?;
+            result.insert(op_type, stats);
+        }
+
+        Ok(result)
+    }
+
+    /// Compute total accuracy for all operations in the last 30 days
+    /// Returns (correct_count, total_count, accuracy_percentage)
+    pub fn compute_total_accuracy_last_30_days(&self) -> Result<(i64, i64, f64)> {
+        let mut stmt = self.conn.prepare(
+            "SELECT
+                COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
+                COUNT(a.id) as total_count,
+                CAST(COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) AS FLOAT) /
+                COUNT(a.id) * 100.0 as accuracy_percentage
+            FROM answers a
+            INNER JOIN decks d ON a.deck_id = d.id
+            WHERE d.status = 'completed'
+            AND a.created_at >= datetime('now', '-30 days')",
+        )?;
+
+        let result = stmt.query_row([], |row| {
+            let correct_count: i64 = row.get(0)?;
+            let total_count: i64 = row.get(1)?;
+            let accuracy: f64 = row.get(2)?;
+            Ok((correct_count, total_count, accuracy))
+        })?;
+
+        Ok(result)
+    }
+
+    /// Compute accuracy statistics for all operation types from the last 10 completed decks
+    /// Returns a map of operation_type -> (correct_count, total_count, accuracy_percentage)
+    pub fn compute_accuracy_all_operations_last_10_decks(
+        &self,
+    ) -> Result<HashMap<String, (i64, i64, f64)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT
+                o.operation_type,
+                COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
+                COUNT(a.id) as total_count,
+                CAST(COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) AS FLOAT) /
+                COUNT(a.id) * 100.0 as accuracy_percentage
+            FROM answers a
+            INNER JOIN operations o ON a.operation_id = o.id
+            INNER JOIN decks d ON a.deck_id = d.id
+            WHERE d.status = 'completed'
+            AND d.id IN (
+                SELECT id FROM decks
+                WHERE status = 'completed'
+                ORDER BY completed_at DESC
+                LIMIT 10
+            )
+            GROUP BY o.operation_type
+            ORDER BY o.operation_type",
+        )?;
+
+        let mut result = HashMap::new();
+        let rows = stmt.query_map([], |row| {
+            let op_type: String = row.get(0)?;
+            let correct_count: i64 = row.get(1)?;
+            let total_count: i64 = row.get(2)?;
+            let accuracy: f64 = row.get(3)?;
+            Ok((op_type, (correct_count, total_count, accuracy)))
+        })?;
+
+        for row in rows {
+            let (op_type, stats) = row?;
+            result.insert(op_type, stats);
+        }
+
+        Ok(result)
+    }
+
+    /// Compute total accuracy for all operations in the last 10 completed decks
+    /// Returns (correct_count, total_count, accuracy_percentage)
+    pub fn compute_total_accuracy_last_10_decks(&self) -> Result<(i64, i64, f64)> {
+        let mut stmt = self.conn.prepare(
+            "SELECT
+                COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
+                COUNT(a.id) as total_count,
+                CAST(COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) AS FLOAT) /
+                COUNT(a.id) * 100.0 as accuracy_percentage
+            FROM answers a
+            INNER JOIN decks d ON a.deck_id = d.id
+            WHERE d.status = 'completed'
+            AND d.id IN (
+                SELECT id FROM decks
+                WHERE status = 'completed'
+                ORDER BY completed_at DESC
+                LIMIT 10
+            )",
+        )?;
+
+        let result = stmt.query_row([], |row| {
+            let correct_count: i64 = row.get(0)?;
+            let total_count: i64 = row.get(1)?;
+            let accuracy: f64 = row.get(2)?;
+            Ok((correct_count, total_count, accuracy))
+        })?;
+
+        Ok(result)
+    }
 }
 
 #[derive(Debug, PartialEq)]
