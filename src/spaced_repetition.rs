@@ -110,8 +110,7 @@ mod tests {
 
     #[test]
     fn test_performance_to_quality_correct_fast() {
-        let stats = example_mock_stats();
-        let quality = stats.evaluate_performance(true, 2.0);
+        let quality = example_mock_stats().evaluate_performance(true, 2.0);
         assert!(matches!(quality, Quality::Grade5));
     }
 
@@ -124,50 +123,43 @@ mod tests {
 
     #[test]
     fn test_performance_to_quality_correct_slightly_above_average() {
-        let stats = example_mock_stats();
-        let quality = stats.evaluate_performance(true, 4.0);
+        let quality = example_mock_stats().evaluate_performance(true, 4.0);
         assert!(matches!(quality, Quality::Grade5));
     }
 
     #[test]
     fn test_performance_to_quality_correct_one_stdev_above_average() {
-        let stats = example_mock_stats();
-        let quality = stats.evaluate_performance(true, 5.0);
+        let quality = example_mock_stats().evaluate_performance(true, 5.0);
         assert!(matches!(quality, Quality::Grade4));
     }
 
     #[test]
     fn test_performance_to_quality_correct_between_stdev1_and_stdev2() {
-        let stats = example_mock_stats();
-        let quality = stats.evaluate_performance(true, 6.0);
+        let quality = example_mock_stats().evaluate_performance(true, 6.0);
         assert!(matches!(quality, Quality::Grade4));
     }
 
     #[test]
     fn test_performance_to_quality_correct_two_stdev_above_average() {
-        let stats = example_mock_stats();
-        let quality = stats.evaluate_performance(true, 7.0);
+        let quality = example_mock_stats().evaluate_performance(true, 7.0);
         assert!(matches!(quality, Quality::Grade4));
     }
 
     #[test]
     fn test_performance_to_quality_correct_between_stdev2_and_stdev3() {
-        let stats = example_mock_stats();
-        let quality = stats.evaluate_performance(true, 8.0);
+        let quality = example_mock_stats().evaluate_performance(true, 8.0);
         assert!(matches!(quality, Quality::Grade4));
     }
 
     #[test]
     fn test_performance_to_quality_correct_three_stdev_above_average() {
-        let stats = example_mock_stats();
-        let quality = stats.evaluate_performance(true, 9.0);
+        let quality = example_mock_stats().evaluate_performance(true, 9.0);
         assert!(matches!(quality, Quality::Grade3));
     }
 
     #[test]
     fn test_performance_to_quality_correct_very_slow() {
-        let stats = example_mock_stats();
-        let quality = stats.evaluate_performance(true, 15.0);
+        let quality = example_mock_stats().evaluate_performance(true, 15.0);
         assert!(matches!(quality, Quality::Grade3));
     }
 
@@ -224,18 +216,17 @@ mod tests {
 
     #[test]
     fn test_performance_to_quality_grade0_always_incorrect() {
-        let stats = example_mock_stats();
         // Grade0 should always be returned for incorrect answers regardless of time
         assert!(matches!(
-            stats.evaluate_performance(false, 0.5),
+            example_mock_stats().evaluate_performance(false, 0.5),
             Quality::Grade0
         ));
         assert!(matches!(
-            stats.evaluate_performance(false, 100.0),
+            example_mock_stats().evaluate_performance(false, 100.0),
             Quality::Grade0
         ));
         assert!(matches!(
-            stats.evaluate_performance(false, 0.0),
+            example_mock_stats().evaluate_performance(false, 0.0),
             Quality::Grade0
         ));
     }
