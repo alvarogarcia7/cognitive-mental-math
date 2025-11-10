@@ -98,8 +98,15 @@ fn main() {
         .compute_total_accuracy_last_10_decks()
         .unwrap_or((0, 0, 0.0));
 
+    // Calculate consecutive days streak
+    let consecutive_days_streak = db
+        .calculate_consecutive_days_streak()
+        .unwrap_or(0);
+
     println!("Performance Analysis Report");
     println!("===========================");
+    println!();
+    println!("Consecutive Days Streak: {} days", consecutive_days_streak);
     println!();
 
     // Iterate through all operation types (sorted for consistent output)
