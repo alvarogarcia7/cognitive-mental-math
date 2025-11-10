@@ -40,11 +40,6 @@ mod tests {
     use super::*;
     use chrono::Duration;
 
-    // Helper to create a datetime from now
-    fn now_plus(duration: Duration) -> DateTime<Utc> {
-        Utc::now() + duration
-    }
-
     // Helper to get current time for testing
     fn get_now() -> DateTime<Utc> {
         Utc::now()
