@@ -222,9 +222,10 @@ impl Database {
     // Deck management methods
 
     pub fn create_deck(&self) -> Result<i64> {
+        let now_utc = Utc::now().to_rfc3339();
         self.conn.execute(
-            "INSERT INTO decks (status) VALUES (?1)",
-            [DeckStatus::InProgress.as_str()],
+            "INSERT INTO decks (created_at, status) VALUES (?1, ?2)",
+            params![now_utc, DeckStatus::InProgress.as_str()],
         )?;
         Ok(self.conn.last_insert_rowid())
     }
@@ -270,9 +271,10 @@ impl Database {
     }
 
     pub fn complete_deck(&self, deck_id: i64) -> Result<()> {
+        let now_utc = Utc::now().to_rfc3339();
         self.conn.execute(
-            "UPDATE decks SET status = ?1, completed_at = CURRENT_TIMESTAMP WHERE id = ?2",
-            params![DeckStatus::Completed.as_str(), deck_id],
+            "UPDATE decks SET status = ?1, completed_at = ?3 WHERE id = ?2",
+            params![DeckStatus::Completed.as_str(), deck_id, now_utc],
         )?;
         Ok(())
     }
