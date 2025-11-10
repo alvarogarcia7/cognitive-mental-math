@@ -411,7 +411,12 @@ impl Database {
             query.push_str(additional_where);
         }
 
-        query.push_str("\n            GROUP BY o.operation_type\n            ORDER BY o.operation_type");
+        query.push_str(
+            "
+            GROUP BY o.operation_type
+            ORDER BY o.operation_type
+",
+        );
 
         let mut stmt = self.conn.prepare(&query)?;
         Self::process_statistics_query(&mut stmt)
@@ -438,9 +443,14 @@ impl Database {
     pub fn compute_time_statistics_all_operations_last_10_decks(
         &self,
     ) -> Result<HashMap<String, (f64, f64)>> {
-        self.compute_time_statistics_all_operations_template(
-            "AND d.id IN (\n                SELECT id FROM decks\n                WHERE status = 'completed'\n                ORDER BY completed_at DESC\n                LIMIT 10\n            )",
-        )
+        let x = r#"
+        AND d.id IN (
+            SELECT id FROM decks
+            WHERE status = 'completed'
+            ORDER BY completed_at DESC
+            LIMIT 10
+        )"#;
+        self.compute_time_statistics_all_operations_template(x)
     }
 }
 
