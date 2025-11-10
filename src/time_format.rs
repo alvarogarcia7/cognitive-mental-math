@@ -45,16 +45,6 @@ mod tests {
         Utc::now()
     }
 
-    // Helper to check if string contains a number within a range
-    fn contains_number_in_range(s: &str, min: i64, max: i64) -> bool {
-        for i in min..=max {
-            if s.contains(&i.to_string()) {
-                return true;
-            }
-        }
-        false
-    }
-
     // Boundary tests for seconds
     #[test]
     fn test_format_past_date() {
@@ -85,25 +75,17 @@ mod tests {
     #[test]
     fn test_format_1_minute() {
         let now = get_now();
-        let future = now + Duration::minutes(1) + Duration::seconds(1);
+        let future = now + Duration::minutes(1);
         let result = format_time_difference(now, future);
-        assert!(
-            result.contains("minute"),
-            "Expected minute format, got: {}",
-            result
-        );
+        assert_eq!(result, "in 1 minute");
     }
 
     #[test]
     fn test_format_2_minutes() {
         let now = get_now();
-        let future = now + Duration::minutes(2) + Duration::seconds(1);
+        let future = now + Duration::minutes(2);
         let result = format_time_difference(now, future);
-        assert!(
-            result.contains("minutes"),
-            "Expected minutes format, got: {}",
-            result
-        );
+        assert_eq!(result, "in 2 minutes");
     }
 
     #[test]
@@ -111,16 +93,7 @@ mod tests {
         let now = get_now();
         let future = now + Duration::minutes(30);
         let result = format_time_difference(now, future);
-        assert!(
-            result.contains("minute"),
-            "Expected minute format, got: {}",
-            result
-        );
-        assert!(
-            contains_number_in_range(&result, 29, 31),
-            "Expected ~30 minutes, got: {}",
-            result
-        );
+        assert_eq!(result, "in 30 minutes");
     }
 
     #[test]
@@ -128,36 +101,24 @@ mod tests {
         let now = get_now();
         let future = now + Duration::minutes(59);
         let result = format_time_difference(now, future);
-        assert!(
-            result.contains("minute"),
-            "Expected minute format, got: {}",
-            result
-        );
+        assert_eq!(result, "in 59 minutes");
     }
 
     // Boundary tests for hours
     #[test]
     fn test_format_1_hour() {
         let now = get_now();
-        let future = now + Duration::hours(1) + Duration::seconds(1);
+        let future = now + Duration::hours(1);
         let result = format_time_difference(now, future);
-        assert!(
-            result.contains("hour"),
-            "Expected hour format, got: {}",
-            result
-        );
+        assert_eq!(result, "in 1 hour");
     }
 
     #[test]
     fn test_format_2_hours() {
         let now = get_now();
-        let future = now + Duration::hours(2) + Duration::seconds(1);
+        let future = now + Duration::hours(2);
         let result = format_time_difference(now, future);
-        assert!(
-            result.contains("hour"),
-            "Expected hour format, got: {}",
-            result
-        );
+        assert_eq!(result, "in 2 hours");
     }
 
     #[test]
@@ -165,11 +126,7 @@ mod tests {
         let now = get_now();
         let future = now + Duration::hours(12);
         let result = format_time_difference(now, future);
-        assert!(
-            result.contains("hour"),
-            "Expected hour format, got: {}",
-            result
-        );
+        assert_eq!(result, "in 12 hours");
     }
 
     #[test]
@@ -177,37 +134,25 @@ mod tests {
         let now = get_now();
         let future = now + Duration::hours(23);
         let result = format_time_difference(now, future);
-        assert!(
-            result.contains("hour"),
-            "Expected hour format, got: {}",
-            result
-        );
+        assert_eq!(result, "in 23 hours");
     }
 
     // Boundary tests for days - special case for "tomorrow"
     #[test]
     fn test_format_1_day_exactly() {
         let now = get_now();
-        let future = now + Duration::days(1) + Duration::seconds(1);
+        let future = now + Duration::days(1);
         let result = format_time_difference(now, future);
-        assert!(
-            result == "tomorrow" || result.contains("day"),
-            "Expected 'tomorrow' or day format, got: {}",
-            result
-        );
+        assert_eq!(result, "tomorrow");
     }
 
     // Boundary tests for multiple days
     #[test]
     fn test_format_2_days() {
         let now = get_now();
-        let future = now + Duration::days(2) + Duration::seconds(1);
+        let future = now + Duration::days(2);
         let result = format_time_difference(now, future);
-        assert!(
-            result.contains("day"),
-            "Expected day format, got: {}",
-            result
-        );
+        assert_eq!(result, "in 2 days");
     }
 
     #[test]
@@ -215,11 +160,7 @@ mod tests {
         let now = get_now();
         let future = now + Duration::days(7);
         let result = format_time_difference(now, future);
-        assert!(
-            result.contains("day"),
-            "Expected day format, got: {}",
-            result
-        );
+        assert_eq!(result, "in 7 days");
     }
 
     #[test]
@@ -227,18 +168,14 @@ mod tests {
         let now = get_now();
         let future = now + Duration::days(29);
         let result = format_time_difference(now, future);
-        assert!(
-            result.contains("day"),
-            "Expected day format, got: {}",
-            result
-        );
+        assert_eq!(result, "in 29 days");
     }
 
     // Boundary tests for date format (30+ days)
     #[test]
     fn test_format_30_days() {
         let now = get_now();
-        let future = now + Duration::days(30) + Duration::seconds(1);
+        let future = now + Duration::days(30);
         let result = format_time_difference(now, future);
         assert!(
             result.starts_with("on "),
@@ -264,62 +201,38 @@ mod tests {
     #[test]
     fn test_format_singular_vs_plural_minutes() {
         let now = get_now();
-        let one_min = now + Duration::minutes(1) + Duration::seconds(1);
+        let one_min = now + Duration::minutes(1);
         let result_one = format_time_difference(now, one_min);
-        assert!(
-            result_one.contains("minute"),
-            "Expected 'minute' singular, got: {}",
-            result_one
-        );
+        assert_eq!(result_one, "in 1 minute");
 
-        let two_mins = now + Duration::minutes(2) + Duration::seconds(1);
+        let two_mins = now + Duration::minutes(2);
         let result_two = format_time_difference(now, two_mins);
-        assert!(
-            result_two.contains("minutes"),
-            "Expected 'minutes' plural, got: {}",
-            result_two
-        );
+        assert_eq!(result_two, "in 2 minutes");
     }
 
     #[test]
     fn test_format_singular_vs_plural_hours() {
         let now = get_now();
-        let one_hour = now + Duration::hours(1) + Duration::seconds(1);
+        let one_hour = now + Duration::hours(1);
         let result_one = format_time_difference(now, one_hour);
-        assert!(
-            result_one.contains("hour"),
-            "Expected 'hour' singular, got: {}",
-            result_one
-        );
+        assert_eq!(result_one, "in 1 hour");
 
-        let two_hours = now + Duration::hours(2) + Duration::seconds(1);
+        let two_hours = now + Duration::hours(2);
         let result_two = format_time_difference(now, two_hours);
-        assert!(
-            result_two.contains("hours"),
-            "Expected 'hours' plural, got: {}",
-            result_two
-        );
+        assert_eq!(result_two, "in 2 hours");
     }
 
     #[test]
     fn test_format_singular_vs_plural_days() {
         let now = get_now();
-        let one_day = now + Duration::days(1) + Duration::seconds(1);
+        let one_day = now + Duration::days(1);
         let result = format_time_difference(now, one_day);
         // 1 day should be "tomorrow"
-        assert!(
-            result == "tomorrow" || result.contains("day"),
-            "Expected 'tomorrow' or day format, got: {}",
-            result
-        );
+        assert_eq!(result, "tomorrow");
 
-        let two_days = now + Duration::days(2) + Duration::seconds(1);
+        let two_days = now + Duration::days(2);
         let result_two = format_time_difference(now, two_days);
-        assert!(
-            result_two.contains("days"),
-            "Expected 'days' plural, got: {}",
-            result_two
-        );
+        assert_eq!(result_two, "in 2 days");
     }
 
     #[test]
@@ -327,19 +240,11 @@ mod tests {
         let now = get_now();
         let fifty_nine_sec = now + Duration::seconds(59);
         let result_59s = format_time_difference(now, fifty_nine_sec);
-        assert!(
-            result_59s.contains("seconds"),
-            "Expected seconds, got: {}",
-            result_59s
-        );
+        assert_eq!(result_59s, "in 59 seconds");
 
         let sixty_sec = now + Duration::seconds(60);
         let result_60s = format_time_difference(now, sixty_sec);
-        assert!(
-            result_60s.contains("minute"),
-            "Expected minutes, got: {}",
-            result_60s
-        );
+        assert_eq!(result_60s, "in 1 minute");
     }
 
     #[test]
@@ -347,19 +252,11 @@ mod tests {
         let now = get_now();
         let fifty_nine_min = now + Duration::minutes(59);
         let result_59m = format_time_difference(now, fifty_nine_min);
-        assert!(
-            result_59m.contains("minute"),
-            "Expected minutes, got: {}",
-            result_59m
-        );
+        assert_eq!(result_59m, "in 59 minutes");
 
-        let sixty_min = now + Duration::minutes(60) + Duration::seconds(1);
+        let sixty_min = now + Duration::minutes(60);
         let result_60m = format_time_difference(now, sixty_min);
-        assert!(
-            result_60m.contains("hour"),
-            "Expected hours, got: {}",
-            result_60m
-        );
+        assert_eq!(result_60m, "in 1 hour");
     }
 
     #[test]
@@ -367,19 +264,11 @@ mod tests {
         let now = get_now();
         let twenty_three_hours = now + Duration::hours(23);
         let result_23h = format_time_difference(now, twenty_three_hours);
-        assert!(
-            result_23h.contains("hour"),
-            "Expected hours, got: {}",
-            result_23h
-        );
+        assert_eq!(result_23h, "in 23 hours");
 
-        let twenty_four_hours = now + Duration::hours(24) + Duration::seconds(1);
+        let twenty_four_hours = now + Duration::hours(24);
         let result_24h = format_time_difference(now, twenty_four_hours);
-        assert!(
-            result_24h == "tomorrow" || result_24h.contains("day"),
-            "Expected 'tomorrow' or day format, got: {}",
-            result_24h
-        );
+        assert_eq!(result_24h, "tomorrow");
     }
 
     #[test]
@@ -387,13 +276,9 @@ mod tests {
         let now = get_now();
         let twenty_nine_days = now + Duration::days(29);
         let result_29d = format_time_difference(now, twenty_nine_days);
-        assert!(
-            result_29d.contains("day"),
-            "Expected day format for 29 days, got: {}",
-            result_29d
-        );
+        assert_eq!(result_29d, "in 29 days");
 
-        let thirty_days = now + Duration::days(30) + Duration::seconds(1);
+        let thirty_days = now + Duration::days(30);
         let result_30d = format_time_difference(now, thirty_days);
         assert!(
             result_30d.starts_with("on "),
@@ -406,53 +291,31 @@ mod tests {
     #[test]
     fn test_format_first_review_1_day() {
         let now = get_now();
-        let future = now + Duration::days(1) + Duration::seconds(1);
+        let future = now + Duration::days(1);
         let result = format_time_difference(now, future);
-        assert!(
-            result == "tomorrow" || result.contains("day"),
-            "First review in 1 day should be 'tomorrow' or contain 'day', got: {}",
-            result
-        );
+        assert_eq!(result, "tomorrow");
     }
 
     #[test]
     fn test_format_second_review_3_days() {
         let now = get_now();
-        let future = now + Duration::days(3) + Duration::seconds(1);
+        let future = now + Duration::days(3);
         let result = format_time_difference(now, future);
-        assert!(
-            result.contains("day"),
-            "Expected day format, got: {}",
-            result
-        );
-        assert!(
-            result.contains("3"),
-            "Expected to contain '3', got: {}",
-            result
-        );
+        assert_eq!(result, "in 3 days");
     }
 
     #[test]
     fn test_format_third_review_7_days() {
         let now = get_now();
-        let future = now + Duration::days(7) + Duration::seconds(1);
+        let future = now + Duration::days(7);
         let result = format_time_difference(now, future);
-        assert!(
-            result.contains("day"),
-            "Expected day format, got: {}",
-            result
-        );
-        assert!(
-            result.contains("7"),
-            "Expected to contain '7', got: {}",
-            result
-        );
+        assert_eq!(result, "in 7 days");
     }
 
     #[test]
     fn test_format_later_review_30_days() {
         let now = get_now();
-        let future = now + Duration::days(30) + Duration::seconds(1);
+        let future = now + Duration::days(30);
         let result = format_time_difference(now, future);
         assert!(
             result.starts_with("on "),
@@ -466,15 +329,6 @@ mod tests {
         let now = get_now();
         let future = now + Duration::minutes(10);
         let result = format_time_difference(now, future);
-        assert!(
-            result.contains("minute"),
-            "Expected minute format, got: {}",
-            result
-        );
-        assert!(
-            contains_number_in_range(&result, 9, 11),
-            "Expected ~10 minutes, got: {}",
-            result
-        );
+        assert_eq!(result, "in 10 minutes");
     }
 }
