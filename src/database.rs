@@ -460,11 +460,13 @@ impl Database {
         self.compute_time_statistics_all_operations_template(x)
     }
 
-    /// Compute accuracy statistics for all operation types (global)
-    /// Returns a map of operation_type -> (correct_count, total_count, accuracy_percentage)
-    pub fn compute_accuracy_all_operations(&self) -> Result<HashMap<String, (i64, i64, f64)>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT
+    /// Template method for computing accuracy statistics per operation type with custom WHERE clauses
+    fn compute_accuracy_all_operations_template(
+        &self,
+        additional_where: &str,
+    ) -> Result<HashMap<String, (i64, i64, f64)>> {
+        let query = if additional_where.is_empty() {
+            r#"SELECT
                 o.operation_type,
                 COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
                 COUNT(a.id) as total_count,
@@ -475,9 +477,12 @@ impl Database {
             INNER JOIN decks d ON a.deck_id = d.id
             WHERE d.status = 'completed'
             GROUP BY o.operation_type
-            ORDER BY o.operation_type",
-        )?;
+            ORDER BY o.operation_type"#
+        } else {
+            return self.compute_accuracy_all_operations_with_filter(additional_where);
+        };
 
+        let mut stmt = self.conn.prepare(query)?;
         let mut result = HashMap::new();
         let rows = stmt.query_map([], |row| {
             let op_type: String = row.get(0)?;
@@ -495,20 +500,62 @@ impl Database {
         Ok(result)
     }
 
-    /// Compute total accuracy for all operations (global)
-    /// Returns (correct_count, total_count, accuracy_percentage)
-    pub fn compute_total_accuracy(&self) -> Result<(i64, i64, f64)> {
-        let mut stmt = self.conn.prepare(
+    /// Helper method to compute accuracy with a custom WHERE filter for per-operation-type stats
+    fn compute_accuracy_all_operations_with_filter(
+        &self,
+        additional_where: &str,
+    ) -> Result<HashMap<String, (i64, i64, f64)>> {
+        let query = format!(
             "SELECT
+                o.operation_type,
+                COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
+                COUNT(a.id) as total_count,
+                CAST(COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) AS FLOAT) /
+                COUNT(a.id) * 100.0 as accuracy_percentage
+            FROM answers a
+            INNER JOIN operations o ON a.operation_id = o.id
+            INNER JOIN decks d ON a.deck_id = d.id
+            WHERE d.status = 'completed'
+            AND {}
+            GROUP BY o.operation_type
+            ORDER BY o.operation_type",
+            additional_where
+        );
+
+        let mut stmt = self.conn.prepare(&query)?;
+        let mut result = HashMap::new();
+        let rows = stmt.query_map([], |row| {
+            let op_type: String = row.get(0)?;
+            let correct_count: i64 = row.get(1)?;
+            let total_count: i64 = row.get(2)?;
+            let accuracy: f64 = row.get(3)?;
+            Ok((op_type, (correct_count, total_count, accuracy)))
+        })?;
+
+        for row in rows {
+            let (op_type, stats) = row?;
+            result.insert(op_type, stats);
+        }
+
+        Ok(result)
+    }
+
+    /// Template method for computing total accuracy with custom WHERE clauses
+    fn compute_total_accuracy_template(&self, additional_where: &str) -> Result<(i64, i64, f64)> {
+        let query = if additional_where.is_empty() {
+            r#"SELECT
                 COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
                 COUNT(a.id) as total_count,
                 CAST(COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) AS FLOAT) /
                 COUNT(a.id) * 100.0 as accuracy_percentage
             FROM answers a
             INNER JOIN decks d ON a.deck_id = d.id
-            WHERE d.status = 'completed'",
-        )?;
+            WHERE d.status = 'completed'"#
+        } else {
+            return self.compute_total_accuracy_with_filter(additional_where);
+        };
 
+        let mut stmt = self.conn.prepare(query)?;
         let result = stmt.query_row([], |row| {
             let correct_count: i64 = row.get(0)?;
             let total_count: i64 = row.get(1)?;
@@ -517,6 +564,47 @@ impl Database {
         })?;
 
         Ok(result)
+    }
+
+    /// Helper method to compute total accuracy with a custom WHERE filter
+    fn compute_total_accuracy_with_filter(
+        &self,
+        additional_where: &str,
+    ) -> Result<(i64, i64, f64)> {
+        let query = format!(
+            "SELECT
+                COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
+                COUNT(a.id) as total_count,
+                CAST(COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) AS FLOAT) /
+                COUNT(a.id) * 100.0 as accuracy_percentage
+            FROM answers a
+            INNER JOIN decks d ON a.deck_id = d.id
+            WHERE d.status = 'completed'
+            AND {}",
+            additional_where
+        );
+
+        let mut stmt = self.conn.prepare(&query)?;
+        let result = stmt.query_row([], |row| {
+            let correct_count: i64 = row.get(0)?;
+            let total_count: i64 = row.get(1)?;
+            let accuracy: f64 = row.get(2)?;
+            Ok((correct_count, total_count, accuracy))
+        })?;
+
+        Ok(result)
+    }
+
+    /// Compute accuracy statistics for all operation types (global)
+    /// Returns a map of operation_type -> (correct_count, total_count, accuracy_percentage)
+    pub fn compute_accuracy_all_operations(&self) -> Result<HashMap<String, (i64, i64, f64)>> {
+        self.compute_accuracy_all_operations_template("")
+    }
+
+    /// Compute total accuracy for all operations (global)
+    /// Returns (correct_count, total_count, accuracy_percentage)
+    pub fn compute_total_accuracy(&self) -> Result<(i64, i64, f64)> {
+        self.compute_total_accuracy_template("")
     }
 
     /// Compute accuracy statistics for all operation types in the last 30 days
@@ -524,62 +612,13 @@ impl Database {
     pub fn compute_accuracy_all_operations_last_30_days(
         &self,
     ) -> Result<HashMap<String, (i64, i64, f64)>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT
-                o.operation_type,
-                COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
-                COUNT(a.id) as total_count,
-                CAST(COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) AS FLOAT) /
-                COUNT(a.id) * 100.0 as accuracy_percentage
-            FROM answers a
-            INNER JOIN operations o ON a.operation_id = o.id
-            INNER JOIN decks d ON a.deck_id = d.id
-            WHERE d.status = 'completed'
-            AND a.created_at >= datetime('now', '-30 days')
-            GROUP BY o.operation_type
-            ORDER BY o.operation_type",
-        )?;
-
-        let mut result = HashMap::new();
-        let rows = stmt.query_map([], |row| {
-            let op_type: String = row.get(0)?;
-            let correct_count: i64 = row.get(1)?;
-            let total_count: i64 = row.get(2)?;
-            let accuracy: f64 = row.get(3)?;
-            Ok((op_type, (correct_count, total_count, accuracy)))
-        })?;
-
-        for row in rows {
-            let (op_type, stats) = row?;
-            result.insert(op_type, stats);
-        }
-
-        Ok(result)
+        self.compute_accuracy_all_operations_template("a.created_at >= datetime('now', '-30 days')")
     }
 
     /// Compute total accuracy for all operations in the last 30 days
     /// Returns (correct_count, total_count, accuracy_percentage)
     pub fn compute_total_accuracy_last_30_days(&self) -> Result<(i64, i64, f64)> {
-        let mut stmt = self.conn.prepare(
-            "SELECT
-                COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
-                COUNT(a.id) as total_count,
-                CAST(COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) AS FLOAT) /
-                COUNT(a.id) * 100.0 as accuracy_percentage
-            FROM answers a
-            INNER JOIN decks d ON a.deck_id = d.id
-            WHERE d.status = 'completed'
-            AND a.created_at >= datetime('now', '-30 days')",
-        )?;
-
-        let result = stmt.query_row([], |row| {
-            let correct_count: i64 = row.get(0)?;
-            let total_count: i64 = row.get(1)?;
-            let accuracy: f64 = row.get(2)?;
-            Ok((correct_count, total_count, accuracy))
-        })?;
-
-        Ok(result)
+        self.compute_total_accuracy_template("a.created_at >= datetime('now', '-30 days')")
     }
 
     /// Compute accuracy statistics for all operation types from the last 10 completed decks
@@ -587,72 +626,17 @@ impl Database {
     pub fn compute_accuracy_all_operations_last_10_decks(
         &self,
     ) -> Result<HashMap<String, (i64, i64, f64)>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT
-                o.operation_type,
-                COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
-                COUNT(a.id) as total_count,
-                CAST(COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) AS FLOAT) /
-                COUNT(a.id) * 100.0 as accuracy_percentage
-            FROM answers a
-            INNER JOIN operations o ON a.operation_id = o.id
-            INNER JOIN decks d ON a.deck_id = d.id
-            WHERE d.status = 'completed'
-            AND d.id IN (
-                SELECT id FROM decks
-                WHERE status = 'completed'
-                ORDER BY completed_at DESC
-                LIMIT 10
-            )
-            GROUP BY o.operation_type
-            ORDER BY o.operation_type",
-        )?;
-
-        let mut result = HashMap::new();
-        let rows = stmt.query_map([], |row| {
-            let op_type: String = row.get(0)?;
-            let correct_count: i64 = row.get(1)?;
-            let total_count: i64 = row.get(2)?;
-            let accuracy: f64 = row.get(3)?;
-            Ok((op_type, (correct_count, total_count, accuracy)))
-        })?;
-
-        for row in rows {
-            let (op_type, stats) = row?;
-            result.insert(op_type, stats);
-        }
-
-        Ok(result)
+        self.compute_accuracy_all_operations_template(
+            "d.id IN (\n                SELECT id FROM decks\n                WHERE status = 'completed'\n                ORDER BY completed_at DESC\n                LIMIT 10\n            )",
+        )
     }
 
     /// Compute total accuracy for all operations in the last 10 completed decks
     /// Returns (correct_count, total_count, accuracy_percentage)
     pub fn compute_total_accuracy_last_10_decks(&self) -> Result<(i64, i64, f64)> {
-        let mut stmt = self.conn.prepare(
-            "SELECT
-                COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) as correct_count,
-                COUNT(a.id) as total_count,
-                CAST(COUNT(CASE WHEN a.is_correct = 1 THEN 1 END) AS FLOAT) /
-                COUNT(a.id) * 100.0 as accuracy_percentage
-            FROM answers a
-            INNER JOIN decks d ON a.deck_id = d.id
-            WHERE d.status = 'completed'
-            AND d.id IN (
-                SELECT id FROM decks
-                WHERE status = 'completed'
-                ORDER BY completed_at DESC
-                LIMIT 10
-            )",
-        )?;
-
-        let result = stmt.query_row([], |row| {
-            let correct_count: i64 = row.get(0)?;
-            let total_count: i64 = row.get(1)?;
-            let accuracy: f64 = row.get(2)?;
-            Ok((correct_count, total_count, accuracy))
-        })?;
-
-        Ok(result)
+        self.compute_total_accuracy_template(
+            "d.id IN (\n                SELECT id FROM decks\n                WHERE status = 'completed'\n                ORDER BY completed_at DESC\n                LIMIT 10\n            )",
+        )
     }
 }
 
@@ -1318,5 +1302,238 @@ mod tests {
             format!("{:.5}", single_result.standard_deviation),
             format!("{:.5}", 4.8989794855664)
         );
+    }
+
+    // Tests for accuracy template functions
+
+    #[test]
+    fn test_compute_accuracy_all_operations_empty_database() {
+        let db = create_test_db();
+        let result = db.compute_accuracy_all_operations().unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_compute_accuracy_all_operations_single_type() {
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 2.0, Some(deck_id))
+            .unwrap();
+        db.complete_deck(deck_id).unwrap();
+
+        let result = db.compute_accuracy_all_operations().unwrap();
+        assert_eq!(result.len(), 1);
+        assert!(result.contains_key("ADD"));
+        let (correct, total, accuracy) = result.get("ADD").unwrap();
+        assert_eq!(*correct, 1);
+        assert_eq!(*total, 1);
+        assert!((accuracy - 100.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_compute_accuracy_all_operations_multiple_types() {
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+
+        // Add ADD operations (all correct)
+        let op_id1 = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+        db.insert_answer(op_id1, 5, true, 1.0, Some(deck_id))
+            .unwrap();
+        db.insert_answer(op_id1, 5, true, 1.5, Some(deck_id))
+            .unwrap();
+
+        // Add MULTIPLY operations (1 correct, 1 incorrect)
+        let op_id2 = db
+            .insert_operation("MULTIPLY", 3, 4, 12, Some(deck_id))
+            .unwrap();
+        db.insert_answer(op_id2, 12, true, 3.0, Some(deck_id))
+            .unwrap();
+        db.insert_answer(op_id2, 10, false, 2.0, Some(deck_id))
+            .unwrap();
+
+        db.complete_deck(deck_id).unwrap();
+
+        let result = db.compute_accuracy_all_operations().unwrap();
+        assert_eq!(result.len(), 2);
+
+        // ADD: 2/2 = 100%
+        let (add_correct, add_total, add_accuracy) = result.get("ADD").unwrap();
+        assert_eq!(*add_correct, 2);
+        assert_eq!(*add_total, 2);
+        assert!((add_accuracy - 100.0).abs() < 0.001);
+
+        // MULTIPLY: 1/2 = 50%
+        let (mult_correct, mult_total, mult_accuracy) = result.get("MULTIPLY").unwrap();
+        assert_eq!(*mult_correct, 1);
+        assert_eq!(*mult_total, 2);
+        assert!((mult_accuracy - 50.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_compute_accuracy_all_operations_excludes_incomplete_decks() {
+        let db = create_test_db();
+        let completed_deck_id = db.create_deck().unwrap();
+        let incomplete_deck_id = db.create_deck().unwrap();
+
+        // Add answers to completed deck
+        let op_id1 = db
+            .insert_operation("ADD", 2, 3, 5, Some(completed_deck_id))
+            .unwrap();
+        db.insert_answer(op_id1, 5, true, 1.0, Some(completed_deck_id))
+            .unwrap();
+
+        // Add answers to incomplete deck (should be ignored)
+        let op_id2 = db
+            .insert_operation("ADD", 2, 3, 5, Some(incomplete_deck_id))
+            .unwrap();
+        db.insert_answer(op_id2, 4, false, 1.0, Some(incomplete_deck_id))
+            .unwrap();
+
+        db.complete_deck(completed_deck_id).unwrap();
+        // Leave incomplete_deck_id incomplete
+
+        let result = db.compute_accuracy_all_operations().unwrap();
+        let (correct, total, accuracy) = result.get("ADD").unwrap();
+        assert_eq!(*correct, 1); // Only from completed deck
+        assert_eq!(*total, 1);
+        assert!((accuracy - 100.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_compute_accuracy_all_operations_last_30_days() {
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 2.0, Some(deck_id))
+            .unwrap();
+        db.complete_deck(deck_id).unwrap();
+
+        let result = db.compute_accuracy_all_operations_last_30_days().unwrap();
+        assert_eq!(result.len(), 1);
+        let (correct, total, accuracy) = result.get("ADD").unwrap();
+        assert_eq!(*correct, 1);
+        assert_eq!(*total, 1);
+        assert!((accuracy - 100.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_compute_accuracy_all_operations_last_10_decks() {
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 2.0, Some(deck_id))
+            .unwrap();
+        db.complete_deck(deck_id).unwrap();
+
+        let result = db.compute_accuracy_all_operations_last_10_decks().unwrap();
+        assert_eq!(result.len(), 1);
+        let (correct, total, accuracy) = result.get("ADD").unwrap();
+        assert_eq!(*correct, 1);
+        assert_eq!(*total, 1);
+        assert!((accuracy - 100.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_compute_total_accuracy_empty_database() {
+        let db = create_test_db();
+        let result = db.compute_total_accuracy();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_compute_total_accuracy_single_deck() {
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 2.0, Some(deck_id))
+            .unwrap();
+        db.complete_deck(deck_id).unwrap();
+
+        let (correct, total, accuracy) = db.compute_total_accuracy().unwrap();
+        assert_eq!(correct, 1);
+        assert_eq!(total, 1);
+        assert!((accuracy - 100.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_compute_total_accuracy_multiple_decks() {
+        let db = create_test_db();
+        let deck_id1 = db.create_deck().unwrap();
+        let deck_id2 = db.create_deck().unwrap();
+
+        // Deck 1: 2 correct answers
+        let op_id1 = db.insert_operation("ADD", 2, 3, 5, Some(deck_id1)).unwrap();
+        db.insert_answer(op_id1, 5, true, 1.0, Some(deck_id1))
+            .unwrap();
+        db.insert_answer(op_id1, 5, true, 1.5, Some(deck_id1))
+            .unwrap();
+
+        // Deck 2: 1 correct, 1 incorrect
+        let op_id2 = db
+            .insert_operation("MULTIPLY", 3, 4, 12, Some(deck_id2))
+            .unwrap();
+        db.insert_answer(op_id2, 12, true, 3.0, Some(deck_id2))
+            .unwrap();
+        db.insert_answer(op_id2, 10, false, 2.0, Some(deck_id2))
+            .unwrap();
+
+        db.complete_deck(deck_id1).unwrap();
+        db.complete_deck(deck_id2).unwrap();
+
+        let (correct, total, accuracy) = db.compute_total_accuracy().unwrap();
+        assert_eq!(correct, 3); // 2 + 1
+        assert_eq!(total, 4); // 2 + 2
+        assert!((accuracy - 75.0).abs() < 0.001); // 3/4 = 75%
+    }
+
+    #[test]
+    fn test_compute_total_accuracy_last_30_days() {
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 2.0, Some(deck_id))
+            .unwrap();
+        db.complete_deck(deck_id).unwrap();
+
+        let (correct, total, accuracy) = db.compute_total_accuracy_last_30_days().unwrap();
+        assert_eq!(correct, 1);
+        assert_eq!(total, 1);
+        assert!((accuracy - 100.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_compute_total_accuracy_last_10_decks() {
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 2.0, Some(deck_id))
+            .unwrap();
+        db.complete_deck(deck_id).unwrap();
+
+        let (correct, total, accuracy) = db.compute_total_accuracy_last_10_decks().unwrap();
+        assert_eq!(correct, 1);
+        assert_eq!(total, 1);
+        assert!((accuracy - 100.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_accuracy_excludes_incorrect_answers() {
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 1.0, Some(deck_id))
+            .unwrap();
+        db.insert_answer(op_id, 4, false, 1.5, Some(deck_id))
+            .unwrap();
+        db.insert_answer(op_id, 3, false, 2.0, Some(deck_id))
+            .unwrap();
+        db.complete_deck(deck_id).unwrap();
+
+        let result = db.compute_accuracy_all_operations().unwrap();
+        let (correct, total, accuracy) = result.get("ADD").unwrap();
+        assert_eq!(*correct, 1);
+        assert_eq!(*total, 3); // All answers are counted
+        assert!((accuracy - 33.333).abs() < 0.1);
     }
 }

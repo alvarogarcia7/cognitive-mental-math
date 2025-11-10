@@ -91,8 +91,12 @@ fn main() {
         }
     };
 
-    let total_accuracy_last_30_days = db.compute_total_accuracy_last_30_days().unwrap_or((0, 0, 0.0));
-    let total_accuracy_last_10_decks = db.compute_total_accuracy_last_10_decks().unwrap_or((0, 0, 0.0));
+    let total_accuracy_last_30_days = db
+        .compute_total_accuracy_last_30_days()
+        .unwrap_or((0, 0, 0.0));
+    let total_accuracy_last_10_decks = db
+        .compute_total_accuracy_last_10_decks()
+        .unwrap_or((0, 0, 0.0));
 
     println!("Performance Analysis Report");
     println!("===========================");
