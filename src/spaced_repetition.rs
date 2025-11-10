@@ -318,4 +318,230 @@ mod tests {
         let duration = item.next_review_date - Utc::now();
         assert!(duration.num_minutes() >= 9 && duration.num_minutes() <= 11);
     }
+
+    // ========== New comprehensive tests ==========
+
+    #[test]
+    fn test_time_statistics_edge_cases() {
+        // Test with zero standard deviation
+        let stats_zero_stdev = TimeStatistics::new(5.0, 0.0);
+        assert_eq!(stats_zero_stdev.threshold_grade5(), 5.0);
+        assert_eq!(stats_zero_stdev.threshold_grade4(), 5.0);
+        assert_eq!(stats_zero_stdev.threshold_grade3(), 5.0);
+
+        // Test with very high standard deviation
+        let stats_high_stdev = TimeStatistics::new(2.0, 10.0);
+        assert_eq!(stats_high_stdev.threshold_grade5(), 2.0);
+        assert_eq!(stats_high_stdev.threshold_grade4(), 12.0);
+        assert_eq!(stats_high_stdev.threshold_grade3(), 22.0);
+
+        // Test with very small values
+        let stats_small = TimeStatistics::new(0.5, 0.1);
+        assert_eq!(stats_small.threshold_grade5(), 0.5);
+        assert_eq!(stats_small.threshold_grade4(), 0.6);
+        assert_eq!(stats_small.threshold_grade3(), 0.7);
+    }
+
+    #[test]
+    fn test_performance_to_quality_grade0_always_incorrect() {
+        let stats = example_mock_stats();
+        // Grade0 should always be returned for incorrect answers regardless of time
+        assert!(matches!(
+            performance_to_quality(false, 0.5, &stats),
+            Quality::Grade0
+        ));
+        assert!(matches!(
+            performance_to_quality(false, 100.0, &stats),
+            Quality::Grade0
+        ));
+        assert!(matches!(
+            performance_to_quality(false, 0.0, &stats),
+            Quality::Grade0
+        ));
+    }
+
+    #[test]
+    fn test_review_scheduler_multiple_sequential_reviews() {
+        let scheduler = ReviewScheduler::new();
+
+        // First review - correct (Grade5)
+        let mut item = ReviewItem {
+            id: Some(1),
+            operation_id: 1,
+            repetitions: 0,
+            interval: 0,
+            ease_factor: 2.5,
+            next_review_date: Utc::now(),
+            last_reviewed_date: None,
+        };
+
+        let (reps1, interval1, ease1, _) = scheduler.process_review(&item, Quality::Grade5);
+        assert_eq!(reps1, 1);
+        assert_eq!(interval1, 1);
+        assert!(ease1 >= 2.5);
+
+        // Second review - still correct (Grade5)
+        item.repetitions = reps1;
+        item.interval = interval1;
+        item.ease_factor = ease1;
+
+        let (reps2, interval2, ease2, _) = scheduler.process_review(&item, Quality::Grade5);
+        assert_eq!(reps2, 2);
+        assert!(interval2 > interval1); // Interval should increase
+        assert!(ease2 >= ease1); // Ease should not decrease
+    }
+
+    #[test]
+    fn test_review_scheduler_ease_factor_degrades_with_poor_quality() {
+        let scheduler = ReviewScheduler::new();
+
+        let mut item = ReviewItem {
+            id: Some(1),
+            operation_id: 1,
+            repetitions: 0,
+            interval: 0,
+            ease_factor: 2.5,
+            next_review_date: Utc::now(),
+            last_reviewed_date: None,
+        };
+
+        // First review - correct (Grade5)
+        let (reps1, interval1, ease1, _) = scheduler.process_review(&item, Quality::Grade5);
+
+        // Second review - serious difficulty (Grade3)
+        item.repetitions = reps1;
+        item.interval = interval1;
+        item.ease_factor = ease1;
+
+        let (_reps2, _interval2, ease2, _) = scheduler.process_review(&item, Quality::Grade3);
+        assert!(ease2 < ease1); // Ease should decrease with poor quality
+        assert!(ease2 >= 1.3); // Ease factor has a minimum value (1.3)
+    }
+
+    #[test]
+    fn test_review_scheduler_next_date_increases_with_interval() {
+        let scheduler = ReviewScheduler::new();
+        let now = Utc::now();
+
+        let mut item = ReviewItem {
+            id: Some(1),
+            operation_id: 1,
+            repetitions: 0,
+            interval: 0,
+            ease_factor: 2.5,
+            next_review_date: now,
+            last_reviewed_date: None,
+        };
+
+        // First review
+        let (reps1, interval1, ease1, next_date1) =
+            scheduler.process_review(&item, Quality::Grade5);
+
+        // Second review
+        item.repetitions = reps1;
+        item.interval = interval1;
+        item.ease_factor = ease1;
+        let (_reps2, _interval2, _ease2, next_date2) =
+            scheduler.process_review(&item, Quality::Grade5);
+
+        // Next review dates should be progressively further in the future
+        assert!(next_date2 > next_date1);
+        assert!(next_date1 > now);
+    }
+
+    #[test]
+    fn test_create_initial_review_item_different_operation_ids() {
+        for op_id in 1..=10 {
+            let item = create_initial_review_item(op_id, true);
+            assert_eq!(item.operation_id, op_id);
+        }
+    }
+
+    #[test]
+    fn test_performance_to_quality_boundary_conditions() {
+        let stats = TimeStatistics::new(10.0, 5.0);
+
+        // Test exact thresholds
+        // Grade5: < 15.0 (average + 1σ)
+        assert!(matches!(
+            performance_to_quality(true, 14.99, &stats),
+            Quality::Grade5
+        ));
+        // Grade4: >= 15.0, < 20.0 (average + 2σ)
+        assert!(matches!(
+            performance_to_quality(true, 15.01, &stats),
+            Quality::Grade4
+        ));
+        // Grade3: >= 20.0 (average + 2σ)
+        assert!(matches!(
+            performance_to_quality(true, 20.01, &stats),
+            Quality::Grade3
+        ));
+        // Grade3: also for very slow times
+        assert!(matches!(
+            performance_to_quality(true, 100.0, &stats),
+            Quality::Grade3
+        ));
+    }
+
+    #[test]
+    fn test_review_item_equality_and_cloning() {
+        let item1 = ReviewItem {
+            id: Some(1),
+            operation_id: 42,
+            repetitions: 3,
+            interval: 7,
+            ease_factor: 2.6,
+            next_review_date: Utc::now(),
+            last_reviewed_date: Some(Utc::now()),
+        };
+
+        let item2 = item1.clone();
+        assert_eq!(item1, item2);
+        assert_eq!(item1.operation_id, item2.operation_id);
+        assert_eq!(item1.repetitions, item2.repetitions);
+        assert_eq!(item1.interval, item2.interval);
+    }
+
+    #[test]
+    fn test_create_initial_review_item_correct_vs_incorrect_timing() {
+        let correct_item = create_initial_review_item(1, true);
+        let incorrect_item = create_initial_review_item(2, false);
+
+        let correct_duration = correct_item.next_review_date - Utc::now();
+        let incorrect_duration = incorrect_item.next_review_date - Utc::now();
+
+        // Correct should be scheduled much later than incorrect
+        assert!(correct_duration.num_hours() > incorrect_duration.num_hours() * 10);
+
+        // Correct should be ~1 day
+        assert!(correct_duration.num_hours() >= 23 && correct_duration.num_hours() <= 25);
+
+        // Incorrect should be ~10 minutes
+        assert!(incorrect_duration.num_minutes() >= 9 && incorrect_duration.num_minutes() <= 11);
+    }
+
+    #[test]
+    fn test_review_scheduler_default_is_new() {
+        let default_scheduler = ReviewScheduler::default();
+        let new_scheduler = ReviewScheduler::new();
+
+        // Both should produce identical results
+        let item = ReviewItem {
+            id: Some(1),
+            operation_id: 1,
+            repetitions: 0,
+            interval: 0,
+            ease_factor: 2.5,
+            next_review_date: Utc::now(),
+            last_reviewed_date: None,
+        };
+
+        let (reps1, interval1, ease1, _) = default_scheduler.process_review(&item, Quality::Grade5);
+        let (reps2, interval2, ease2, _) = new_scheduler.process_review(&item, Quality::Grade5);
+
+        assert_eq!(reps1, reps2);
+        assert_eq!(interval1, interval2);
+        assert_eq!(ease1, ease2);
+    }
 }
