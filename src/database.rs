@@ -1,6 +1,6 @@
 use crate::deck::{Deck, DeckStatus, DeckSummary};
 use crate::row_factories::{DeckRowFactory, ReviewItemRowFactory};
-use crate::spaced_repetition::ReviewItem;
+use crate::spaced_repetition::{AnswerTimedEvaluator, ReviewItem};
 use crate::time_format::format_time_difference;
 use chrono::{DateTime, Utc};
 use log::debug;
@@ -320,7 +320,10 @@ impl Database {
     ///
     /// Returns (average_time, standard_deviation) for correct answers of the given operation type
     /// Only considers correct answers from completed decks
-    pub fn compute_time_statistics(&self, operation_type: &str) -> Result<Option<(f64, f64)>> {
+    pub fn compute_time_statistics(
+        &self,
+        operation_type: &str,
+    ) -> Result<Option<AnswerTimedEvaluator>> {
         // First, compute count, sum, and sum of squares for correct answers
         let mut stmt = self.conn.prepare(
             "SELECT
@@ -349,7 +352,7 @@ impl Database {
                 let variance = (sum_squares / count as f64) - (total_sum / count as f64).powi(2);
                 let stdev = variance.sqrt().max(0.0);
 
-                Ok(Some((average, stdev)))
+                Ok(Some(AnswerTimedEvaluator::new(average, stdev)))
             }
         })?;
 
@@ -357,7 +360,9 @@ impl Database {
     }
 
     /// Helper function to extract and calculate statistics from a row
-    fn extract_row_statistics(row: &rusqlite::Row) -> rusqlite::Result<(String, (f64, f64))> {
+    fn extract_row_statistics(
+        row: &rusqlite::Row,
+    ) -> rusqlite::Result<(String, AnswerTimedEvaluator)> {
         let op_type: String = row.get(0)?;
         let count: i64 = row.get(1)?;
         let average: f64 = row.get(2)?;
@@ -371,18 +376,18 @@ impl Database {
             0.0
         };
 
-        Ok((op_type, (average, stdev)))
+        Ok((op_type, AnswerTimedEvaluator::new(average, stdev)))
     }
 
     /// Helper function to process statistics query and build HashMap
     fn process_statistics_query(
         stmt: &mut rusqlite::Statement,
-    ) -> Result<HashMap<String, (f64, f64)>> {
+    ) -> Result<HashMap<String, AnswerTimedEvaluator>> {
         let mut result = HashMap::new();
         let rows = stmt.query_map([], Self::extract_row_statistics)?;
         for row in rows {
-            let (op_type, stats) = row?;
-            result.insert(op_type, stats);
+            let (op_type, evaluator) = row?;
+            result.insert(op_type, evaluator);
         }
         Ok(result)
     }
@@ -392,7 +397,7 @@ impl Database {
     fn compute_time_statistics_all_operations_template(
         &self,
         additional_where: &str,
-    ) -> Result<HashMap<String, (f64, f64)>> {
+    ) -> Result<HashMap<String, AnswerTimedEvaluator>> {
         let mut query = "SELECT
                 o.operation_type,
                 COUNT(a.time_spent_seconds) as count,
@@ -423,26 +428,28 @@ impl Database {
     }
 
     /// Compute time statistics for all operation types (global)
-    /// Returns a map of operation_type -> (average, stdev)
-    pub fn compute_time_statistics_all_operations(&self) -> Result<HashMap<String, (f64, f64)>> {
+    /// Returns a map of operation_type -> AnswerTimedEvaluator
+    pub fn compute_time_statistics_all_operations(
+        &self,
+    ) -> Result<HashMap<String, AnswerTimedEvaluator>> {
         self.compute_time_statistics_all_operations_template("")
     }
 
     /// Compute time statistics for all operation types in the last 30 days
-    /// Returns a map of operation_type -> (average, stdev)
+    /// Returns a map of operation_type -> AnswerTimedEvaluator
     pub fn compute_time_statistics_all_operations_last_30_days(
         &self,
-    ) -> Result<HashMap<String, (f64, f64)>> {
+    ) -> Result<HashMap<String, AnswerTimedEvaluator>> {
         self.compute_time_statistics_all_operations_template(
             "AND a.created_at >= datetime('now', '-30 days')",
         )
     }
 
     /// Compute time statistics for all operation types from the last 10 completed decks
-    /// Returns a map of operation_type -> (average, stdev)
+    /// Returns a map of operation_type -> AnswerTimedEvaluator
     pub fn compute_time_statistics_all_operations_last_10_decks(
         &self,
-    ) -> Result<HashMap<String, (f64, f64)>> {
+    ) -> Result<HashMap<String, AnswerTimedEvaluator>> {
         let x = r#"
         AND d.id IN (
             SELECT id FROM decks
@@ -843,10 +850,10 @@ mod tests {
 
         let result = db.compute_time_statistics("ADD").unwrap();
         assert!(result.is_some());
-        let (avg, stdev) = result.unwrap();
-        assert!((avg - 2.0).abs() < 0.001);
+        let eval = result.unwrap();
+        assert!((eval.average - 2.0).abs() < 0.001);
         // Single value: variance = (4.0/1) - (2.0/1)^2 = 0
-        assert!(stdev < 0.001);
+        assert!(eval.standard_deviation < 0.001);
     }
 
     #[test]
@@ -864,12 +871,12 @@ mod tests {
 
         let result = db.compute_time_statistics("ADD").unwrap();
         assert!(result.is_some());
-        let (avg, stdev) = result.unwrap();
+        let eval = result.unwrap();
         // Average: (1.0 + 3.0) / 2 = 2.0
-        assert!((avg - 2.0).abs() < 0.001);
+        assert!((eval.average - 2.0).abs() < 0.001);
         // Variance: ((1.0^2 + 3.0^2) / 2) - (2.0^2) = (10.0/2) - 4.0 = 1.0
         // Stdev: sqrt(1.0) = 1.0
-        assert!((stdev - 1.0).abs() < 0.001);
+        assert!((eval.standard_deviation - 1.0).abs() < 0.001);
     }
 
     #[test]
@@ -888,9 +895,9 @@ mod tests {
 
         let result = db.compute_time_statistics("ADD").unwrap();
         assert!(result.is_some());
-        let (avg, _) = result.unwrap();
+        let eval = result.unwrap();
         // Should only average 1.0 and 3.0
-        assert!((avg - 2.0).abs() < 0.001);
+        assert!((eval.average - 2.0).abs() < 0.001);
     }
 
     #[test]
@@ -911,9 +918,9 @@ mod tests {
 
         let result = db.compute_time_statistics("ADD").unwrap();
         assert!(result.is_some());
-        let (avg, _) = result.unwrap();
+        let eval = result.unwrap();
         // Should only use data from deck_id1
-        assert!((avg - 1.0).abs() < 0.001);
+        assert!((eval.average - 1.0).abs() < 0.001);
     }
 
     #[test]
@@ -935,9 +942,9 @@ mod tests {
         let result = db.compute_time_statistics_all_operations().unwrap();
         assert_eq!(result.len(), 1);
         assert!(result.contains_key("ADD"));
-        let (avg, stdev) = result.get("ADD").copied().unwrap();
-        assert!((avg - 2.0).abs() < 0.001);
-        assert!(stdev < 0.001);
+        let eval = result.get("ADD").unwrap();
+        assert!((eval.average - 2.0).abs() < 0.001);
+        assert!(eval.standard_deviation < 0.001);
     }
 
     #[test]
@@ -965,14 +972,14 @@ mod tests {
         assert_eq!(result.len(), 2);
 
         assert!(result.contains_key("ADD"));
-        let (add_avg, _) = result.get("ADD").unwrap();
-        assert!((add_avg - 1.0).abs() < 0.001);
+        let add_eval = result.get("ADD").unwrap();
+        assert!((add_eval.average - 1.0).abs() < 0.001);
 
         assert!(result.contains_key("MULTIPLY"));
-        let (mult_avg, mult_stdev) = result.get("MULTIPLY").unwrap();
-        assert!((mult_avg - 4.0).abs() < 0.001); // (3.0 + 5.0) / 2 = 4.0
+        let mult_eval = result.get("MULTIPLY").unwrap();
+        assert!((mult_eval.average - 4.0).abs() < 0.001); // (3.0 + 5.0) / 2 = 4.0
         // Variance: ((9.0 + 25.0) / 2) - 16.0 = 17.0 - 16.0 = 1.0, stdev = 1.0
-        assert!((mult_stdev - 1.0).abs() < 0.001);
+        assert!((mult_eval.standard_deviation - 1.0).abs() < 0.001);
     }
 
     #[test]
@@ -1026,11 +1033,11 @@ mod tests {
             .unwrap();
         assert!(result.contains_key("ADD"));
 
-        let (avg, _) = result.get("ADD").unwrap();
+        let eval = result.get("ADD").unwrap();
 
         // Last 10 decks have times: 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
         // Average: (6+7+8+9+10+11+12+13+14+15) / 10 = 105 / 10 = 10.5
-        assert!((avg - 10.5).abs() < 0.001);
+        assert!((eval.average - 10.5).abs() < 0.001);
     }
 
     #[test]
@@ -1054,9 +1061,9 @@ mod tests {
 
         // Should include all 5 decks
         assert!(result.contains_key("ADD"));
-        let (avg, _) = result.get("ADD").unwrap();
+        let eval = result.get("ADD").unwrap();
         // Average: (1+2+3+4+5) / 5 = 15 / 5 = 3.0
-        assert!((avg - 3.0).abs() < 0.001);
+        assert!((eval.average - 3.0).abs() < 0.001);
     }
 
     #[test]
@@ -1109,11 +1116,11 @@ mod tests {
         );
         let single_result = db.compute_time_statistics("ADD").unwrap().unwrap();
 
-        assert_eq!(single_result.0, 18.0);
+        assert_eq!(single_result.average, 18.0);
         // Computed from here, using 'Population':
         // https://www.calculator.net/standard-deviation-calculator.html?numberinputs=10%2C+12%2C+23%2C+23%2C+16%2C+23%2C+21%2C+16&ctype=p&x=Calculate
         assert_eq!(
-            format!("{:.5}", single_result.1),
+            format!("{:.5}", single_result.standard_deviation),
             format!("{:.5}", 4.8989794855664)
         );
     }

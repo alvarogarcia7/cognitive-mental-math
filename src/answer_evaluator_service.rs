@@ -22,7 +22,6 @@ impl AnswerEvaluatorService {
             .compute_time_statistics(operation_type)
             .ok()
             .flatten()
-            .map(|(avg, stdev)| AnswerTimedEvaluator::new(avg, stdev))
             .unwrap_or_else(|| {
                 // Fallback if no historical data exists
                 AnswerTimedEvaluator::new(3.0, 2.0)

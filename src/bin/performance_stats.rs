@@ -1,4 +1,5 @@
 use memory_practice::database::Database;
+use memory_practice::spaced_repetition::AnswerTimedEvaluator;
 use std::env;
 
 fn main() {
@@ -79,19 +80,31 @@ fn main() {
 
         // Print last 30 days stats
         print_stats("Last 30 days", &last_30);
-        if let (Some((avg_global, _)), Some((avg_30days, _))) = (global, last_30) {
-            print_improvement(avg_global, avg_30days, "Last 30 days vs Global");
+        if let (Some(global_eval), Some(last_30_eval)) = (global, last_30) {
+            print_improvement(
+                global_eval.average,
+                last_30_eval.average,
+                "Last 30 days vs Global",
+            );
         }
 
         // Print last 10 decks stats
         print_stats("Last 10 decks", &last_10);
-        if let (Some((avg_global, _)), Some((avg_10decks, _))) = (global, last_10) {
-            print_improvement(avg_global, avg_10decks, "Last 10 decks vs Global");
+        if let (Some(global_eval), Some(last_10_eval)) = (global, last_10) {
+            print_improvement(
+                global_eval.average,
+                last_10_eval.average,
+                "Last 10 decks vs Global",
+            );
         }
 
         // Compare last 30 days vs last 10 decks
-        if let (Some((avg_30days, _)), Some((avg_10decks, _))) = (last_30, last_10) {
-            print_improvement(avg_30days, avg_10decks, "Last 10 decks vs Last 30 days");
+        if let (Some(last_30_eval), Some(last_10_eval)) = (last_30, last_10) {
+            print_improvement(
+                last_30_eval.average,
+                last_10_eval.average,
+                "Last 10 decks vs Last 30 days",
+            );
         }
 
         println!();
@@ -99,10 +112,13 @@ fn main() {
 }
 
 /// Print statistics for a given time period
-fn print_stats(label: &str, stats: &Option<(f64, f64)>) {
+fn print_stats(label: &str, stats: &Option<AnswerTimedEvaluator>) {
     match stats {
-        Some((avg, stdev)) => {
-            println!("  {} - Average: {:.3}s, Std Dev: {:.3}s", label, avg, stdev);
+        Some(eval) => {
+            println!(
+                "  {} - Average: {:.3}s, Std Dev: {:.3}s",
+                label, eval.average, eval.standard_deviation
+            );
         }
         None => {
             println!("  {} - No data available", label);
