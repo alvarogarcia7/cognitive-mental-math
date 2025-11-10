@@ -19,14 +19,20 @@ impl TimeStatistics {
         }
     }
 
+    /// Lower bound of typical performance (average time)
+    /// Used as reference point for quality grading thresholds
     pub fn threshold_grade5(&self) -> f64 {
         self.average
     }
 
+    /// Upper bound for Grade4 (After hesitation): average + 1σ
+    /// Times >= this threshold but < threshold_grade3 are Grade4
     pub fn threshold_grade4(&self) -> f64 {
         self.average + self.standard_deviation
     }
 
+    /// Upper bound for Grade3 (Serious difficulty): average + 2σ
+    /// Times >= this threshold are Grade3 (slowest responses)
     pub fn threshold_grade3(&self) -> f64 {
         self.average + (2.0 * self.standard_deviation)
     }
@@ -104,10 +110,10 @@ impl Default for ReviewScheduler {
 /// Uses statistical thresholds based on historical performance data for the operation type.
 /// Grades are assigned based on how fast the answer was relative to typical performance:
 ///
-/// Quality scale (0-5):
+/// Quality scale:
 /// - Grade0: Incorrect (complete blackout)
-/// - Grade3: Correct but slow (≥ average + 3 stdev)
-/// - Grade4: Correct with some hesitation (≥ average + 1 stdev, but < average + 3 stdev)
+/// - Grade3: Correct but slow (≥ average + 2 stdev)
+/// - Grade4: Correct with some hesitation (≥ average + 1 stdev, but < average + 2 stdev)
 /// - Grade5: Perfect and immediate recall (< average + 1 stdev)
 pub fn performance_to_quality(
     is_correct: bool,
@@ -213,7 +219,7 @@ mod tests {
     #[test]
     fn test_performance_to_quality_correct_between_stdev2_and_stdev3() {
         let stats = example_mock_stats();
-        // 8.0 is between 7.0 (grade3) and 9.0 (grade2), should be Grade3
+        // 8.0 is above 7.0 (grade3 threshold), should be Grade3
         let quality = performance_to_quality(true, 8.0, &stats);
         assert!(matches!(quality, Quality::Grade3));
     }
@@ -221,7 +227,7 @@ mod tests {
     #[test]
     fn test_performance_to_quality_correct_three_stdev_above_average() {
         let stats = example_mock_stats();
-        // Exactly at 9.0, which is grade2 threshold, should be Grade2
+        // Exactly at 9.0 (average + 3σ), which is above grade3 threshold, should be Grade3
         let quality = performance_to_quality(true, 9.0, &stats);
         assert!(matches!(quality, Quality::Grade3));
     }
@@ -467,7 +473,7 @@ mod tests {
             performance_to_quality(true, 14.99, &stats),
             Quality::Grade5
         ));
-        // Grade4: >= 15.0, < 20.0 (average + 2σ)
+        // Grade4: >= 15.0 (average + 1σ), < 20.0 (average + 2σ)
         assert!(matches!(
             performance_to_quality(true, 15.01, &stats),
             Quality::Grade4
