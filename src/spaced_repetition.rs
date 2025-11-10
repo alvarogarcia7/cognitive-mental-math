@@ -1,6 +1,45 @@
 use chrono::{DateTime, Duration, Utc};
 use sra::sm_2::{Quality, SM2};
 
+/// Statistics about answer times for a specific operation type
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TimeStatistics {
+    /// Average time spent on correct answers (in seconds)
+    pub average: f64,
+    /// Standard deviation of time spent on correct answers (in seconds)
+    pub standard_deviation: f64,
+}
+
+impl TimeStatistics {
+    /// Create a new TimeStatistics
+    pub fn new(average: f64, standard_deviation: f64) -> Self {
+        Self {
+            average,
+            standard_deviation,
+        }
+    }
+
+    /// Get the threshold for Grade 5 (average or below)
+    pub fn threshold_grade5(&self) -> f64 {
+        self.average
+    }
+
+    /// Get the threshold for Grade 4 (average + 1 stdev)
+    pub fn threshold_grade4(&self) -> f64 {
+        self.average + self.standard_deviation
+    }
+
+    /// Get the threshold for Grade 3 (average + 2 stdev)
+    pub fn threshold_grade3(&self) -> f64 {
+        self.average + (2.0 * self.standard_deviation)
+    }
+
+    /// Get the threshold for Grade 2 (average + 3 stdev)
+    pub fn threshold_grade2(&self) -> f64 {
+        self.average + (3.0 * self.standard_deviation)
+    }
+}
+
 /// Represents a single item scheduled for spaced repetition review
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReviewItem {
@@ -59,22 +98,30 @@ impl Default for ReviewScheduler {
 
 /// Maps user performance (correctness and speed) to an SM-2 Quality rating
 ///
+/// Uses statistical thresholds based on historical performance data for the operation type.
+/// Grades are assigned based on how fast the answer was relative to typical performance:
+///
 /// Quality scale (0-5):
-/// - 0-2: Incorrect or very slow (hard)
-/// - 3: Correct but difficult
-/// - 4: Correct with some hesitation
-/// - 5: Perfect and immediate recall
-pub fn performance_to_quality(is_correct: bool, time_spent: f64) -> Quality {
+/// - Grade0: Incorrect (complete blackout)
+/// - Grade2: Correct but very slow (≥ average + 3 stdev)
+/// - Grade3: Correct but slow (≥ average + 2 stdev, but < average + 3 stdev)
+/// - Grade4: Correct with some hesitation (≥ average + 1 stdev, but < average + 2 stdev)
+/// - Grade5: Perfect and immediate recall (< average + 1 stdev)
+pub fn performance_to_quality(
+    is_correct: bool,
+    time_spent: f64,
+    stats: &TimeStatistics,
+) -> Quality {
     if !is_correct {
         // Incorrect: complete blackout
         Quality::Grade0
-    } else if time_spent > 10.0 {
-        // Correct but very slow: incorrect, correct one remembered
+    } else if time_spent >= stats.threshold_grade2() {
+        // Correct but very slow: recalled with difficulty
         Quality::Grade2
-    } else if time_spent > 5.0 {
+    } else if time_spent >= stats.threshold_grade3() {
         // Correct but slow: recalled with serious difficulty
         Quality::Grade3
-    } else if time_spent > 2.0 {
+    } else if time_spent >= stats.threshold_grade4() {
         // Correct with some thought: after hesitation
         Quality::Grade4
     } else {
@@ -108,34 +155,161 @@ pub fn create_initial_review_item(operation_id: i64, is_correct: bool) -> Review
 mod tests {
     use super::*;
 
+    /// Mock statistics for tests: average 3.0s with stdev 2.0s
+    /// - Grade5 threshold: 3.0s
+    /// - Grade4 threshold: 5.0s (3.0 + 2.0)
+    /// - Grade3 threshold: 7.0s (3.0 + 4.0)
+    /// - Grade2 threshold: 9.0s (3.0 + 6.0)
+    fn mock_stats_normal() -> TimeStatistics {
+        TimeStatistics::new(3.0, 2.0)
+    }
+
+    /// Mock statistics for fast operations: average 1.0s with stdev 0.5s
+    /// - Grade5 threshold: 1.0s
+    /// - Grade4 threshold: 1.5s
+    /// - Grade3 threshold: 2.0s
+    /// - Grade2 threshold: 2.5s
+    fn mock_stats_fast() -> TimeStatistics {
+        TimeStatistics::new(1.0, 0.5)
+    }
+
+    /// Mock statistics for slow operations: average 10.0s with stdev 3.0s
+    /// - Grade5 threshold: 10.0s
+    /// - Grade4 threshold: 13.0s
+    /// - Grade3 threshold: 16.0s
+    /// - Grade2 threshold: 19.0s
+    fn mock_stats_slow() -> TimeStatistics {
+        TimeStatistics::new(10.0, 3.0)
+    }
+
+    #[test]
+    fn test_time_statistics_thresholds() {
+        let stats = mock_stats_normal();
+        assert_eq!(stats.threshold_grade5(), 3.0);
+        assert_eq!(stats.threshold_grade4(), 5.0);
+        assert_eq!(stats.threshold_grade3(), 7.0);
+        assert_eq!(stats.threshold_grade2(), 9.0);
+    }
+
     #[test]
     fn test_performance_to_quality_incorrect() {
-        let quality = performance_to_quality(false, 1.0);
+        let stats = mock_stats_normal();
+        let quality = performance_to_quality(false, 1.0, &stats);
         assert!(matches!(quality, Quality::Grade0));
     }
 
     #[test]
     fn test_performance_to_quality_correct_fast() {
-        let quality = performance_to_quality(true, 1.0);
+        let stats = mock_stats_normal();
+        let quality = performance_to_quality(true, 2.0, &stats);
         assert!(matches!(quality, Quality::Grade5));
     }
 
     #[test]
-    fn test_performance_to_quality_correct_moderate() {
-        let quality = performance_to_quality(true, 3.0);
+    fn test_performance_to_quality_correct_at_average() {
+        let stats = mock_stats_normal();
+        let quality = performance_to_quality(true, 3.0, &stats);
+        assert!(matches!(quality, Quality::Grade5));
+    }
+
+    #[test]
+    fn test_performance_to_quality_correct_slightly_above_average() {
+        let stats = mock_stats_normal();
+        // 4.0 is below grade4 threshold (5.0), should be Grade5
+        let quality = performance_to_quality(true, 4.0, &stats);
+        assert!(matches!(quality, Quality::Grade5));
+    }
+
+    #[test]
+    fn test_performance_to_quality_correct_one_stdev_above_average() {
+        let stats = mock_stats_normal();
+        // Exactly at 5.0, which is grade4 threshold, should be Grade4
+        let quality = performance_to_quality(true, 5.0, &stats);
         assert!(matches!(quality, Quality::Grade4));
     }
 
     #[test]
-    fn test_performance_to_quality_correct_slow() {
-        let quality = performance_to_quality(true, 7.0);
+    fn test_performance_to_quality_correct_between_stdev1_and_stdev2() {
+        let stats = mock_stats_normal();
+        // 6.0 is between 5.0 (grade4) and 7.0 (grade3), should be Grade4
+        let quality = performance_to_quality(true, 6.0, &stats);
+        assert!(matches!(quality, Quality::Grade4));
+    }
+
+    #[test]
+    fn test_performance_to_quality_correct_two_stdev_above_average() {
+        let stats = mock_stats_normal();
+        // Exactly at 7.0, which is grade3 threshold, should be Grade3
+        let quality = performance_to_quality(true, 7.0, &stats);
         assert!(matches!(quality, Quality::Grade3));
     }
 
     #[test]
-    fn test_performance_to_quality_correct_very_slow() {
-        let quality = performance_to_quality(true, 15.0);
+    fn test_performance_to_quality_correct_between_stdev2_and_stdev3() {
+        let stats = mock_stats_normal();
+        // 8.0 is between 7.0 (grade3) and 9.0 (grade2), should be Grade3
+        let quality = performance_to_quality(true, 8.0, &stats);
+        assert!(matches!(quality, Quality::Grade3));
+    }
+
+    #[test]
+    fn test_performance_to_quality_correct_three_stdev_above_average() {
+        let stats = mock_stats_normal();
+        // Exactly at 9.0, which is grade2 threshold, should be Grade2
+        let quality = performance_to_quality(true, 9.0, &stats);
         assert!(matches!(quality, Quality::Grade2));
+    }
+
+    #[test]
+    fn test_performance_to_quality_correct_very_slow() {
+        let stats = mock_stats_normal();
+        let quality = performance_to_quality(true, 15.0, &stats);
+        assert!(matches!(quality, Quality::Grade2));
+    }
+
+    #[test]
+    fn test_performance_to_quality_with_fast_stats() {
+        let stats = mock_stats_fast();
+        // 0.9s is below grade4 threshold (1.5s) → Grade5
+        assert!(matches!(
+            performance_to_quality(true, 0.9, &stats),
+            Quality::Grade5
+        ));
+        // 1.5s is exactly at grade4 threshold → Grade4
+        assert!(matches!(
+            performance_to_quality(true, 1.5, &stats),
+            Quality::Grade4
+        ));
+        // 2.0s is exactly at grade3 threshold → Grade3
+        assert!(matches!(
+            performance_to_quality(true, 2.0, &stats),
+            Quality::Grade3
+        ));
+    }
+
+    #[test]
+    fn test_performance_to_quality_with_slow_stats() {
+        let stats = mock_stats_slow();
+        // 9.5s is below grade4 threshold (13.0s) → Grade5
+        assert!(matches!(
+            performance_to_quality(true, 9.5, &stats),
+            Quality::Grade5
+        ));
+        // 13.0s is exactly at grade4 threshold → Grade4
+        assert!(matches!(
+            performance_to_quality(true, 13.0, &stats),
+            Quality::Grade4
+        ));
+        // 16.0s is exactly at grade3 threshold → Grade3
+        assert!(matches!(
+            performance_to_quality(true, 16.0, &stats),
+            Quality::Grade3
+        ));
+        // 19.0s is exactly at grade2 threshold → Grade2
+        assert!(matches!(
+            performance_to_quality(true, 19.0, &stats),
+            Quality::Grade2
+        ));
     }
 
     #[test]

@@ -314,6 +314,44 @@ impl Database {
         )?;
         Ok(count)
     }
+
+    /// Compute time statistics for correct answers of a specific operation type
+    ///
+    /// Returns (average_time, standard_deviation) for correct answers of the given operation type
+    /// Only considers correct answers from completed decks
+    pub fn compute_time_statistics(&self, operation_type: &str) -> Result<Option<(f64, f64)>> {
+        // First, compute count, sum, and sum of squares for correct answers
+        let mut stmt = self.conn.prepare(
+            "SELECT
+                COUNT(a.time_spent_seconds) as count,
+                AVG(a.time_spent_seconds) as average,
+                SQRT(
+                    MAX(0,
+                        SUM(a.time_spent_seconds * a.time_spent_seconds) / COUNT(a.time_spent_seconds)
+                        - (AVG(a.time_spent_seconds) * AVG(a.time_spent_seconds))
+                    )
+                ) as stdev
+            FROM answers a
+            INNER JOIN operations o ON a.operation_id = o.id
+            INNER JOIN decks d ON a.deck_id = d.id
+            WHERE o.operation_type = ?1
+            AND a.is_correct = 1
+            AND d.status = 'completed'",
+        )?;
+
+        let result = stmt.query_row([operation_type], |row| {
+            let count: i64 = row.get(0)?;
+            if count == 0 {
+                Ok(None)
+            } else {
+                let average: f64 = row.get(1)?;
+                let stdev: f64 = row.get(2)?;
+                Ok(Some((average, stdev)))
+            }
+        })?;
+
+        Ok(result)
+    }
 }
 
 #[derive(Debug, PartialEq)]

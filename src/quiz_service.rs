@@ -2,7 +2,7 @@ use crate::database::Database;
 use crate::deck::DeckSummary;
 use crate::operations::{Operation, OperationType};
 use crate::spaced_repetition::{
-    ReviewScheduler, create_initial_review_item, performance_to_quality,
+    ReviewScheduler, TimeStatistics, create_initial_review_item, performance_to_quality,
 };
 use crate::time_format::format_time_difference;
 use chrono::Utc;
@@ -94,7 +94,20 @@ impl QuizService {
                 .is_ok()
             {
                 if let Ok(Some(mut review_item)) = self.db.get_review_item(operation_id) {
-                    let quality = performance_to_quality(result.is_correct, result.time_spent);
+                    // Get time statistics for this operation type
+                    let stats = self
+                        .db
+                        .compute_time_statistics(result.operation.operation_type.as_str())
+                        .ok()
+                        .flatten()
+                        .map(|(avg, stdev)| TimeStatistics::new(avg, stdev))
+                        .unwrap_or_else(|| {
+                            // Fallback if no historical data exists
+                            TimeStatistics::new(3.0, 2.0)
+                        });
+
+                    let quality =
+                        performance_to_quality(result.is_correct, result.time_spent, &stats);
                     let (reps, interval, ease, next_date) =
                         scheduler.process_review(&review_item, quality);
 
@@ -148,7 +161,19 @@ impl QuizService {
                 )
                 .is_ok()
             {
-                let quality = performance_to_quality(result.is_correct, result.time_spent);
+                // Get time statistics for this operation type
+                let stats = self
+                    .db
+                    .compute_time_statistics(result.operation.operation_type.as_str())
+                    .ok()
+                    .flatten()
+                    .map(|(avg, stdev)| TimeStatistics::new(avg, stdev))
+                    .unwrap_or_else(|| {
+                        // Fallback if no historical data exists
+                        TimeStatistics::new(3.0, 2.0)
+                    });
+
+                let quality = performance_to_quality(result.is_correct, result.time_spent, &stats);
                 let mut review_item = create_initial_review_item(operation_id, result.is_correct);
 
                 let (reps, interval, ease, next_date) =
