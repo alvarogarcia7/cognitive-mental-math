@@ -356,6 +356,37 @@ impl Database {
         Ok(result)
     }
 
+    /// Helper function to extract and calculate statistics from a row
+    fn extract_row_statistics(row: &rusqlite::Row) -> rusqlite::Result<(String, (f64, f64))> {
+        let op_type: String = row.get(0)?;
+        let count: i64 = row.get(1)?;
+        let average: f64 = row.get(2)?;
+        let sum_squares: f64 = row.get(3)?;
+        let total_sum: f64 = row.get(4)?;
+
+        let stdev = if count > 0 {
+            let variance = (sum_squares / count as f64) - (total_sum / count as f64).powi(2);
+            variance.sqrt().max(0.0)
+        } else {
+            0.0
+        };
+
+        Ok((op_type, (average, stdev)))
+    }
+
+    /// Helper function to process statistics query and build HashMap
+    fn process_statistics_query(
+        stmt: &mut rusqlite::Statement,
+    ) -> Result<HashMap<String, (f64, f64)>> {
+        let mut result = HashMap::new();
+        let rows = stmt.query_map([], Self::extract_row_statistics)?;
+        for row in rows {
+            let (op_type, stats) = row?;
+            result.insert(op_type, stats);
+        }
+        Ok(result)
+    }
+
     /// Compute time statistics for all operation types (global)
     /// Returns a map of operation_type -> (average, stdev)
     pub fn compute_time_statistics_all_operations(&self) -> Result<HashMap<String, (f64, f64)>> {
@@ -375,30 +406,7 @@ impl Database {
             ORDER BY o.operation_type",
         )?;
 
-        let mut result = HashMap::new();
-        let rows = stmt.query_map([], |row| {
-            let op_type: String = row.get(0)?;
-            let count: i64 = row.get(1)?;
-            let average: f64 = row.get(2)?;
-            let sum_squares: f64 = row.get(3)?;
-            let total_sum: f64 = row.get(4)?;
-
-            let stdev = if count > 0 {
-                let variance = (sum_squares / count as f64) - (total_sum / count as f64).powi(2);
-                variance.sqrt().max(0.0)
-            } else {
-                0.0
-            };
-
-            Ok((op_type, (average, stdev)))
-        })?;
-
-        for row in rows {
-            let (op_type, stats) = row?;
-            result.insert(op_type, stats);
-        }
-
-        Ok(result)
+        Self::process_statistics_query(&mut stmt)
     }
 
     /// Compute time statistics for all operation types in the last 30 days
@@ -423,30 +431,7 @@ impl Database {
             ORDER BY o.operation_type",
         )?;
 
-        let mut result = HashMap::new();
-        let rows = stmt.query_map([], |row| {
-            let op_type: String = row.get(0)?;
-            let count: i64 = row.get(1)?;
-            let average: f64 = row.get(2)?;
-            let sum_squares: f64 = row.get(3)?;
-            let total_sum: f64 = row.get(4)?;
-
-            let stdev = if count > 0 {
-                let variance = (sum_squares / count as f64) - (total_sum / count as f64).powi(2);
-                variance.sqrt().max(0.0)
-            } else {
-                0.0
-            };
-
-            Ok((op_type, (average, stdev)))
-        })?;
-
-        for row in rows {
-            let (op_type, stats) = row?;
-            result.insert(op_type, stats);
-        }
-
-        Ok(result)
+        Self::process_statistics_query(&mut stmt)
     }
 
     /// Compute time statistics for all operation types from the last 10 completed decks
@@ -476,30 +461,7 @@ impl Database {
             ORDER BY o.operation_type",
         )?;
 
-        let mut result = HashMap::new();
-        let rows = stmt.query_map([], |row| {
-            let op_type: String = row.get(0)?;
-            let count: i64 = row.get(1)?;
-            let average: f64 = row.get(2)?;
-            let sum_squares: f64 = row.get(3)?;
-            let total_sum: f64 = row.get(4)?;
-
-            let stdev = if count > 0 {
-                let variance = (sum_squares / count as f64) - (total_sum / count as f64).powi(2);
-                variance.sqrt().max(0.0)
-            } else {
-                0.0
-            };
-
-            Ok((op_type, (average, stdev)))
-        })?;
-
-        for row in rows {
-            let (op_type, stats) = row?;
-            result.insert(op_type, stats);
-        }
-
-        Ok(result)
+        Self::process_statistics_query(&mut stmt)
     }
 }
 
@@ -873,7 +835,8 @@ mod tests {
         let db = create_test_db();
         let deck_id = db.create_deck().unwrap();
         let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
-        db.insert_answer(op_id, 5, true, 2.0, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 2.0, Some(deck_id))
+            .unwrap();
         db.complete_deck(deck_id).unwrap();
 
         let result = db.compute_time_statistics("MULTIPLY").unwrap();
@@ -885,7 +848,8 @@ mod tests {
         let db = create_test_db();
         let deck_id = db.create_deck().unwrap();
         let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
-        db.insert_answer(op_id, 5, true, 2.0, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 2.0, Some(deck_id))
+            .unwrap();
         db.complete_deck(deck_id).unwrap();
 
         let result = db.compute_time_statistics("ADD").unwrap();
@@ -903,8 +867,10 @@ mod tests {
         let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
 
         // Insert answers with times: 1.0, 3.0
-        db.insert_answer(op_id, 5, true, 1.0, Some(deck_id)).unwrap();
-        db.insert_answer(op_id, 5, true, 3.0, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 1.0, Some(deck_id))
+            .unwrap();
+        db.insert_answer(op_id, 5, true, 3.0, Some(deck_id))
+            .unwrap();
         db.complete_deck(deck_id).unwrap();
 
         let result = db.compute_time_statistics("ADD").unwrap();
@@ -923,9 +889,12 @@ mod tests {
         let deck_id = db.create_deck().unwrap();
         let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
 
-        db.insert_answer(op_id, 5, true, 1.0, Some(deck_id)).unwrap();
-        db.insert_answer(op_id, 4, false, 2.0, Some(deck_id)).unwrap(); // Should be excluded
-        db.insert_answer(op_id, 5, true, 3.0, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 1.0, Some(deck_id))
+            .unwrap();
+        db.insert_answer(op_id, 4, false, 2.0, Some(deck_id))
+            .unwrap(); // Should be excluded
+        db.insert_answer(op_id, 5, true, 3.0, Some(deck_id))
+            .unwrap();
         db.complete_deck(deck_id).unwrap();
 
         let result = db.compute_time_statistics("ADD").unwrap();
@@ -942,11 +911,13 @@ mod tests {
         let deck_id2 = db.create_deck().unwrap();
 
         let op_id1 = db.insert_operation("ADD", 2, 3, 5, Some(deck_id1)).unwrap();
-        db.insert_answer(op_id1, 5, true, 1.0, Some(deck_id1)).unwrap();
+        db.insert_answer(op_id1, 5, true, 1.0, Some(deck_id1))
+            .unwrap();
         db.complete_deck(deck_id1).unwrap();
 
         let op_id2 = db.insert_operation("ADD", 4, 5, 9, Some(deck_id2)).unwrap();
-        db.insert_answer(op_id2, 9, true, 5.0, Some(deck_id2)).unwrap();
+        db.insert_answer(op_id2, 9, true, 5.0, Some(deck_id2))
+            .unwrap();
         // deck_id2 is NOT completed
 
         let result = db.compute_time_statistics("ADD").unwrap();
@@ -968,7 +939,8 @@ mod tests {
         let db = create_test_db();
         let deck_id = db.create_deck().unwrap();
         let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
-        db.insert_answer(op_id, 5, true, 2.0, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 2.0, Some(deck_id))
+            .unwrap();
         db.complete_deck(deck_id).unwrap();
 
         let result = db.compute_time_statistics_all_operations().unwrap();
@@ -986,12 +958,17 @@ mod tests {
 
         // Add ADD operations
         let op_id1 = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
-        db.insert_answer(op_id1, 5, true, 1.0, Some(deck_id)).unwrap();
+        db.insert_answer(op_id1, 5, true, 1.0, Some(deck_id))
+            .unwrap();
 
         // Add MULTIPLY operations
-        let op_id2 = db.insert_operation("MULTIPLY", 3, 4, 12, Some(deck_id)).unwrap();
-        db.insert_answer(op_id2, 12, true, 3.0, Some(deck_id)).unwrap();
-        db.insert_answer(op_id2, 12, true, 5.0, Some(deck_id)).unwrap();
+        let op_id2 = db
+            .insert_operation("MULTIPLY", 3, 4, 12, Some(deck_id))
+            .unwrap();
+        db.insert_answer(op_id2, 12, true, 3.0, Some(deck_id))
+            .unwrap();
+        db.insert_answer(op_id2, 12, true, 5.0, Some(deck_id))
+            .unwrap();
 
         db.complete_deck(deck_id).unwrap();
 
@@ -1017,7 +994,8 @@ mod tests {
 
         // Create operation and answer for current deck
         let op_id1 = db.insert_operation("ADD", 2, 3, 5, Some(deck_id1)).unwrap();
-        db.insert_answer(op_id1, 5, true, 2.0, Some(deck_id1)).unwrap();
+        db.insert_answer(op_id1, 5, true, 2.0, Some(deck_id1))
+            .unwrap();
         db.complete_deck(deck_id1).unwrap();
 
         // For old data, we'll create another deck and manually insert data with old timestamp
@@ -1025,11 +1003,14 @@ mod tests {
 
         // Insert old answer (more than 30 days ago) - we simulate by inserting then checking
         // Since we can't easily control timestamps in tests, we verify that current data is included
-        db.insert_answer(op_id2, 9, true, 10.0, Some(deck_id2)).unwrap();
+        db.insert_answer(op_id2, 9, true, 10.0, Some(deck_id2))
+            .unwrap();
         db.complete_deck(deck_id2).unwrap();
 
         // Get last 30 days stats - should include recent answers
-        let result = db.compute_time_statistics_all_operations_last_30_days().unwrap();
+        let result = db
+            .compute_time_statistics_all_operations_last_30_days()
+            .unwrap();
 
         // Should have at least the ADD operations we just created
         assert!(result.contains_key("ADD"));
@@ -1043,13 +1024,7 @@ mod tests {
         for i in 1..=15 {
             let deck_id = db.create_deck().unwrap();
             let op_id = db
-                .insert_operation(
-                    "ADD",
-                    i as i32,
-                    1,
-                    (i as i32) + 1,
-                    Some(deck_id),
-                )
+                .insert_operation("ADD", i as i32, 1, (i as i32) + 1, Some(deck_id))
                 .unwrap();
             // Time spent increases from 1.0 to 15.0
             db.insert_answer(op_id, (i as i32) + 1, true, i as f64, Some(deck_id))
@@ -1057,7 +1032,9 @@ mod tests {
             db.complete_deck(deck_id).unwrap();
         }
 
-        let result = db.compute_time_statistics_all_operations_last_10_decks().unwrap();
+        let result = db
+            .compute_time_statistics_all_operations_last_10_decks()
+            .unwrap();
         assert!(result.contains_key("ADD"));
 
         let (avg, _) = result.get("ADD").unwrap();
@@ -1075,20 +1052,16 @@ mod tests {
         for i in 1..=5 {
             let deck_id = db.create_deck().unwrap();
             let op_id = db
-                .insert_operation(
-                    "ADD",
-                    i as i32,
-                    1,
-                    (i as i32) + 1,
-                    Some(deck_id),
-                )
+                .insert_operation("ADD", i as i32, 1, (i as i32) + 1, Some(deck_id))
                 .unwrap();
             db.insert_answer(op_id, (i as i32) + 1, true, i as f64, Some(deck_id))
                 .unwrap();
             db.complete_deck(deck_id).unwrap();
         }
 
-        let result = db.compute_time_statistics_all_operations_last_10_decks().unwrap();
+        let result = db
+            .compute_time_statistics_all_operations_last_10_decks()
+            .unwrap();
 
         // Should include all 5 decks
         assert!(result.contains_key("ADD"));
@@ -1103,11 +1076,14 @@ mod tests {
         let deck_id = db.create_deck().unwrap();
 
         let op_id1 = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
-        db.insert_answer(op_id1, 5, true, 1.0, Some(deck_id)).unwrap();
-        db.insert_answer(op_id1, 5, true, 3.0, Some(deck_id)).unwrap();
+        db.insert_answer(op_id1, 5, true, 1.0, Some(deck_id))
+            .unwrap();
+        db.insert_answer(op_id1, 5, true, 3.0, Some(deck_id))
+            .unwrap();
 
         let op_id2 = db.insert_operation("ADD", 4, 5, 9, Some(deck_id)).unwrap();
-        db.insert_answer(op_id2, 9, true, 2.0, Some(deck_id)).unwrap();
+        db.insert_answer(op_id2, 9, true, 2.0, Some(deck_id))
+            .unwrap();
 
         db.complete_deck(deck_id).unwrap();
 
