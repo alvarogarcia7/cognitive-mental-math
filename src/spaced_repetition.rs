@@ -21,15 +21,6 @@ impl AnswerTimedEvaluator {
         }
     }
 
-    /// Maps user performance (correctness and speed) to an SM-2 Quality rating
-    ///
-    /// Grades are assigned based on how fast the answer was relative to typical performance:
-    ///
-    /// Quality scale:
-    /// - Grade0: Incorrect (complete blackout)
-    /// - Grade3: Correct but slow (≥ average + 3 stdev)
-    /// - Grade4: Correct with some hesitation (≥ average + 1 stdev, but < average + 3 stdev)
-    /// - Grade5: Perfect and immediate recall (< average + 1 stdev)
     pub fn evaluate_performance(&self, is_correct: bool, time_spent: f64) -> Quality {
         if !is_correct {
             // Incorrect: complete blackout
