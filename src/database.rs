@@ -5,6 +5,7 @@ use crate::time_format::format_time_difference;
 use chrono::{DateTime, Utc};
 use log::debug;
 use rusqlite::{Connection, Result, params};
+use std::collections::HashMap;
 
 // Embed migrations from the migrations directory
 refinery::embed_migrations!("migrations");
@@ -325,12 +326,8 @@ impl Database {
             "SELECT
                 COUNT(a.time_spent_seconds) as count,
                 AVG(a.time_spent_seconds) as average,
-                SQRT(
-                    MAX(0,
-                        SUM(a.time_spent_seconds * a.time_spent_seconds) / COUNT(a.time_spent_seconds)
-                        - (AVG(a.time_spent_seconds) * AVG(a.time_spent_seconds))
-                    )
-                ) as stdev
+                SUM(a.time_spent_seconds * a.time_spent_seconds) as sum_squares,
+                SUM(a.time_spent_seconds) as total_sum
             FROM answers a
             INNER JOIN operations o ON a.operation_id = o.id
             INNER JOIN decks d ON a.deck_id = d.id
@@ -345,10 +342,162 @@ impl Database {
                 Ok(None)
             } else {
                 let average: f64 = row.get(1)?;
-                let stdev: f64 = row.get(2)?;
+                let sum_squares: f64 = row.get(2)?;
+                let total_sum: f64 = row.get(3)?;
+
+                // Calculate standard deviation: sqrt(sum(x²)/n - (sum(x)/n)²)
+                let variance = (sum_squares / count as f64) - (total_sum / count as f64).powi(2);
+                let stdev = variance.sqrt().max(0.0);
+
                 Ok(Some((average, stdev)))
             }
         })?;
+
+        Ok(result)
+    }
+
+    /// Compute time statistics for all operation types (global)
+    /// Returns a map of operation_type -> (average, stdev)
+    pub fn compute_time_statistics_all_operations(&self) -> Result<HashMap<String, (f64, f64)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT
+                o.operation_type,
+                COUNT(a.time_spent_seconds) as count,
+                AVG(a.time_spent_seconds) as average,
+                SUM(a.time_spent_seconds * a.time_spent_seconds) as sum_squares,
+                SUM(a.time_spent_seconds) as total_sum
+            FROM answers a
+            INNER JOIN operations o ON a.operation_id = o.id
+            INNER JOIN decks d ON a.deck_id = d.id
+            WHERE a.is_correct = 1
+            AND d.status = 'completed'
+            GROUP BY o.operation_type
+            ORDER BY o.operation_type",
+        )?;
+
+        let mut result = HashMap::new();
+        let rows = stmt.query_map([], |row| {
+            let op_type: String = row.get(0)?;
+            let count: i64 = row.get(1)?;
+            let average: f64 = row.get(2)?;
+            let sum_squares: f64 = row.get(3)?;
+            let total_sum: f64 = row.get(4)?;
+
+            let stdev = if count > 0 {
+                let variance = (sum_squares / count as f64) - (total_sum / count as f64).powi(2);
+                variance.sqrt().max(0.0)
+            } else {
+                0.0
+            };
+
+            Ok((op_type, (average, stdev)))
+        })?;
+
+        for row in rows {
+            let (op_type, stats) = row?;
+            result.insert(op_type, stats);
+        }
+
+        Ok(result)
+    }
+
+    /// Compute time statistics for all operation types in the last 30 days
+    /// Returns a map of operation_type -> (average, stdev)
+    pub fn compute_time_statistics_all_operations_last_30_days(
+        &self,
+    ) -> Result<HashMap<String, (f64, f64)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT
+                o.operation_type,
+                COUNT(a.time_spent_seconds) as count,
+                AVG(a.time_spent_seconds) as average,
+                SUM(a.time_spent_seconds * a.time_spent_seconds) as sum_squares,
+                SUM(a.time_spent_seconds) as total_sum
+            FROM answers a
+            INNER JOIN operations o ON a.operation_id = o.id
+            INNER JOIN decks d ON a.deck_id = d.id
+            WHERE a.is_correct = 1
+            AND d.status = 'completed'
+            AND a.created_at >= datetime('now', '-30 days')
+            GROUP BY o.operation_type
+            ORDER BY o.operation_type",
+        )?;
+
+        let mut result = HashMap::new();
+        let rows = stmt.query_map([], |row| {
+            let op_type: String = row.get(0)?;
+            let count: i64 = row.get(1)?;
+            let average: f64 = row.get(2)?;
+            let sum_squares: f64 = row.get(3)?;
+            let total_sum: f64 = row.get(4)?;
+
+            let stdev = if count > 0 {
+                let variance = (sum_squares / count as f64) - (total_sum / count as f64).powi(2);
+                variance.sqrt().max(0.0)
+            } else {
+                0.0
+            };
+
+            Ok((op_type, (average, stdev)))
+        })?;
+
+        for row in rows {
+            let (op_type, stats) = row?;
+            result.insert(op_type, stats);
+        }
+
+        Ok(result)
+    }
+
+    /// Compute time statistics for all operation types from the last 10 completed decks
+    /// Returns a map of operation_type -> (average, stdev)
+    pub fn compute_time_statistics_all_operations_last_10_decks(
+        &self,
+    ) -> Result<HashMap<String, (f64, f64)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT
+                o.operation_type,
+                COUNT(a.time_spent_seconds) as count,
+                AVG(a.time_spent_seconds) as average,
+                SUM(a.time_spent_seconds * a.time_spent_seconds) as sum_squares,
+                SUM(a.time_spent_seconds) as total_sum
+            FROM answers a
+            INNER JOIN operations o ON a.operation_id = o.id
+            INNER JOIN decks d ON a.deck_id = d.id
+            WHERE a.is_correct = 1
+            AND d.status = 'completed'
+            AND d.id IN (
+                SELECT id FROM decks
+                WHERE status = 'completed'
+                ORDER BY completed_at DESC
+                LIMIT 10
+            )
+            GROUP BY o.operation_type
+            ORDER BY o.operation_type",
+        )?;
+
+        let mut result = HashMap::new();
+        let rows = stmt.query_map([], |row| {
+            let op_type: String = row.get(0)?;
+            let count: i64 = row.get(1)?;
+            let average: f64 = row.get(2)?;
+            let sum_squares: f64 = row.get(3)?;
+            let total_sum: f64 = row.get(4)?;
+
+            let stdev = if count > 0 {
+                let variance = (sum_squares / count as f64) - (total_sum / count as f64).powi(2);
+                variance.sqrt().max(0.0)
+            } else {
+                0.0
+            };
+
+            Ok((op_type, (average, stdev)))
+        })?;
+
+        for row in rows {
+            let (op_type, stats) = row?;
+            result.insert(op_type, stats);
+        }
 
         Ok(result)
     }
