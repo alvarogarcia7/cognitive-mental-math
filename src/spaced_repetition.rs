@@ -103,17 +103,6 @@ impl Default for ReviewScheduler {
     }
 }
 
-// /// Convert SM-2 quality grade to human-readable string
-// pub fn quality_to_string(quality: Quality) -> String {
-//     match quality {
-//         Quality::Grade0 => "Grade0 (Incorrect)".to_string(),
-//         Quality::Grade3 => "Grade3 (Serious difficulty)".to_string(),
-//         Quality::Grade4 => "Grade4 (After hesitation)".to_string(),
-//         Quality::Grade5 => "Grade5 (Perfect)".to_string(),
-//         _ => "N/A".to_string(),
-//     }
-// }
-
 /// Creates a new ReviewItem with initial SM-2 parameters
 pub fn create_initial_review_item(operation_id: i64, is_correct: bool) -> ReviewItem {
     let next_review_date = if is_correct {
