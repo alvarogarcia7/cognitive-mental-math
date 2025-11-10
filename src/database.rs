@@ -15,6 +15,15 @@ pub struct Database {
 }
 
 impl Database {
+    // SQL WHERE clause constants for template method filters
+    const LAST_30_DAYS_WHERE: &'static str = "a.created_at >= datetime('now', '-30 days')";
+    const LAST_10_DECKS_WHERE: &'static str = r#"d.id IN (
+                SELECT id FROM decks
+                WHERE status = 'completed'
+                ORDER BY completed_at DESC
+                LIMIT 10
+            )"#;
+
     pub fn new(db_path: &str) -> Result<Self> {
         let mut conn = Connection::open(db_path)?;
 
@@ -440,9 +449,10 @@ impl Database {
     pub fn compute_time_statistics_all_operations_last_30_days(
         &self,
     ) -> Result<HashMap<String, AnswerTimedEvaluator>> {
-        self.compute_time_statistics_all_operations_template(
-            "AND a.created_at >= datetime('now', '-30 days')",
-        )
+        self.compute_time_statistics_all_operations_template(&format!(
+            "AND {}",
+            Self::LAST_30_DAYS_WHERE
+        ))
     }
 
     /// Compute time statistics for all operation types from the last 10 completed decks
@@ -450,14 +460,10 @@ impl Database {
     pub fn compute_time_statistics_all_operations_last_10_decks(
         &self,
     ) -> Result<HashMap<String, AnswerTimedEvaluator>> {
-        let x = r#"
-        AND d.id IN (
-            SELECT id FROM decks
-            WHERE status = 'completed'
-            ORDER BY completed_at DESC
-            LIMIT 10
-        )"#;
-        self.compute_time_statistics_all_operations_template(x)
+        self.compute_time_statistics_all_operations_template(&format!(
+            "AND {}",
+            Self::LAST_10_DECKS_WHERE
+        ))
     }
 
     /// Template method for computing accuracy statistics per operation type with custom WHERE clauses
@@ -551,13 +557,13 @@ impl Database {
     pub fn compute_accuracy_all_operations_last_30_days(
         &self,
     ) -> Result<HashMap<String, (i64, i64, f64)>> {
-        self.compute_accuracy_all_operations_template("a.created_at >= datetime('now', '-30 days')")
+        self.compute_accuracy_all_operations_template(Self::LAST_30_DAYS_WHERE)
     }
 
     /// Compute total accuracy for all operations in the last 30 days
     /// Returns (correct_count, total_count, accuracy_percentage)
     pub fn compute_total_accuracy_last_30_days(&self) -> Result<(i64, i64, f64)> {
-        self.compute_total_accuracy_template("a.created_at >= datetime('now', '-30 days')")
+        self.compute_total_accuracy_template(Self::LAST_30_DAYS_WHERE)
     }
 
     /// Compute accuracy statistics for all operation types from the last 10 completed decks
@@ -565,27 +571,13 @@ impl Database {
     pub fn compute_accuracy_all_operations_last_10_decks(
         &self,
     ) -> Result<HashMap<String, (i64, i64, f64)>> {
-        self.compute_accuracy_all_operations_template(
-            r#"d.id IN (
-                SELECT id FROM decks
-                WHERE status = 'completed'
-                ORDER BY completed_at DESC
-                LIMIT 10
-            )"#,
-        )
+        self.compute_accuracy_all_operations_template(Self::LAST_10_DECKS_WHERE)
     }
 
     /// Compute total accuracy for all operations in the last 10 completed decks
     /// Returns (correct_count, total_count, accuracy_percentage)
     pub fn compute_total_accuracy_last_10_decks(&self) -> Result<(i64, i64, f64)> {
-        self.compute_total_accuracy_template(
-            r#"d.id IN (
-                SELECT id FROM decks
-                WHERE status = 'completed'
-                ORDER BY completed_at DESC
-                LIMIT 10
-            )"#,
-        )
+        self.compute_total_accuracy_template(Self::LAST_10_DECKS_WHERE)
     }
 }
 
