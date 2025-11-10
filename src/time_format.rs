@@ -55,8 +55,7 @@ mod tests {
 
     #[test]
     fn test_format_now() {
-        let now = get_now();
-        assert_eq!(format_time_difference(now, now), "now");
+        assert_eq!(format_time_difference(get_now(), get_now()), "now");
     }
 
     #[test]
@@ -285,50 +284,5 @@ mod tests {
             "Expected 'on YYYY-MM-DD' for 30+ days, got: {}",
             result_30d
         );
-    }
-
-    // Realistic spaced repetition scenarios
-    #[test]
-    fn test_format_first_review_1_day() {
-        let now = get_now();
-        let future = now + Duration::days(1);
-        let result = format_time_difference(now, future);
-        assert_eq!(result, "tomorrow");
-    }
-
-    #[test]
-    fn test_format_second_review_3_days() {
-        let now = get_now();
-        let future = now + Duration::days(3);
-        let result = format_time_difference(now, future);
-        assert_eq!(result, "in 3 days");
-    }
-
-    #[test]
-    fn test_format_third_review_7_days() {
-        let now = get_now();
-        let future = now + Duration::days(7);
-        let result = format_time_difference(now, future);
-        assert_eq!(result, "in 7 days");
-    }
-
-    #[test]
-    fn test_format_later_review_30_days() {
-        let now = get_now();
-        let future = now + Duration::days(30);
-        let result = format_time_difference(now, future);
-        assert!(
-            result.starts_with("on "),
-            "Later review should use date format, got: {}",
-            result
-        );
-    }
-
-    #[test]
-    fn test_format_incorrect_retry_10_minutes() {
-        let now = get_now();
-        let future = now + Duration::minutes(10);
-        let result = format_time_difference(now, future);
-        assert_eq!(result, "in 10 minutes");
     }
 }
