@@ -1,6 +1,5 @@
 use memory_practice::database::Database;
 use memory_practice::gui::{AppState, MemoryPracticeApp};
-use memory_practice::operations::generate_question_block;
 use std::sync::Arc;
 
 #[test]
