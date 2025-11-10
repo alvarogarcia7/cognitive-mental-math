@@ -1,5 +1,10 @@
 use chrono::{DateTime, Utc};
 
+/// Returns the plural suffix for singular/plural formatting
+fn plural_suffix(count: i64) -> &'static str {
+    if count == 1 { "" } else { "s" }
+}
+
 /// Formats the time difference between two datetimes as human-readable text
 ///
 /// Examples:
@@ -18,18 +23,19 @@ pub fn format_time_difference(now: DateTime<Utc>, future_date: DateTime<Utc>) ->
     if duration.num_seconds() <= 0 {
         "now".to_string()
     } else if duration.num_seconds() < 60 {
-        format!("in {} seconds", duration.num_seconds())
+        let secs = duration.num_seconds();
+        format!("in {} second{}", secs, plural_suffix(secs))
     } else if duration.num_minutes() < 60 {
         let mins = duration.num_minutes();
-        format!("in {} minute{}", mins, if mins == 1 { "" } else { "s" })
+        format!("in {} minute{}", mins, plural_suffix(mins))
     } else if duration.num_hours() < 24 {
         let hours = duration.num_hours();
-        format!("in {} hour{}", hours, if hours == 1 { "" } else { "s" })
+        format!("in {} hour{}", hours, plural_suffix(hours))
     } else if duration.num_days() == 1 {
         "tomorrow".to_string()
     } else if duration.num_days() < 30 {
         let days = duration.num_days();
-        format!("in {} day{}", days, if days == 1 { "" } else { "s" })
+        format!("in {} day{}", days, plural_suffix(days))
     } else {
         format!("on {}", future_date.format("%Y-%m-%d"))
     }
@@ -59,15 +65,26 @@ mod tests {
     }
 
     #[test]
+    fn test_format_1_second() {
+        let now = get_now();
+        let future = now + Duration::seconds(1);
+        let result = format_time_difference(now, future);
+        assert_eq!(result, "in 1 second");
+    }
+
+    #[test]
+    fn test_format_2_seconds() {
+        let now = get_now();
+        let future = now + Duration::seconds(2);
+        let result = format_time_difference(now, future);
+        assert_eq!(result, "in 2 seconds");
+    }
+
+    #[test]
     fn test_format_30_seconds() {
         let now = get_now();
         let future = now + Duration::seconds(30);
-        let result = format_time_difference(now, future);
-        assert!(
-            result.starts_with("in ") && result.contains("seconds"),
-            "Expected seconds format, got: {}",
-            result
-        );
+        assert_eq!(format_time_difference(now, future), "in 30 seconds");
     }
 
     // Boundary tests for minutes
