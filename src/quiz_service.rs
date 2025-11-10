@@ -1,9 +1,7 @@
 use crate::database::Database;
 use crate::deck::DeckSummary;
 use crate::operations::{Operation, OperationType};
-use crate::spaced_repetition::{
-    ReviewScheduler, TimeStatistics, create_initial_review_item, performance_to_quality,
-};
+use crate::spaced_repetition::{ReviewScheduler, TimeStatistics, create_initial_review_item};
 use crate::time_format::format_time_difference;
 use chrono::{DateTime, Utc};
 use log::info;
@@ -124,8 +122,7 @@ impl QuizService {
                             TimeStatistics::new(3.0, 2.0)
                         });
 
-                    let quality =
-                        performance_to_quality(result.is_correct, result.time_spent, &stats);
+                    let quality = stats.evaluate_performance(result.is_correct, result.time_spent);
                     let (reps, interval, ease, next_date) =
                         scheduler.process_review(&review_item, quality);
 
@@ -200,7 +197,7 @@ impl QuizService {
                         TimeStatistics::new(3.0, 2.0)
                     });
 
-                let quality = performance_to_quality(result.is_correct, result.time_spent, &stats);
+                let quality = stats.evaluate_performance(result.is_correct, result.time_spent);
                 let mut review_item = create_initial_review_item(operation_id, result.is_correct);
 
                 let (reps, interval, ease, next_date) =
