@@ -485,6 +485,7 @@ pub struct AnswerRecord {
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::format;
     use super::*;
 
     fn create_test_db() -> Database {
@@ -1095,5 +1096,31 @@ mod tests {
 
         // They should match for ADD
         assert_eq!(single_result, all_result.get("ADD").copied());
+    }
+    #[test]
+    fn test_compute_time_statistics_standard_deviation_and_average() {
+        fn insert_add(
+            deck_id: i64,
+            db: &Database,
+            times: Vec<f64>,
+        ) {
+            let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+
+            for time in times {
+                db.insert_answer(op_id, 5, true, time, Some(deck_id))
+                    .unwrap();
+            }
+            db.complete_deck(deck_id).unwrap();
+        }
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+        assert_eq!(deck_id, 1);
+        insert_add(deck_id, &db, vec![10, 12, 23, 23, 16, 23, 21, 16].iter().map(|&x| x as f64).collect());
+        let single_result = db.compute_time_statistics("ADD").unwrap().unwrap();
+
+        assert_eq!(single_result.0, 18.0);
+        // Computed from here, using 'Population':
+        // https://www.calculator.net/standard-deviation-calculator.html?numberinputs=10%2C+12%2C+23%2C+23%2C+16%2C+23%2C+21%2C+16&ctype=p&x=Calculate
+        assert_eq!(format!("{:.5}", single_result.1), format!("{:.5}", 4.8989794855664));
     }
 }
