@@ -39,9 +39,6 @@ impl DatabaseConfigBuilder {
 }
 
 impl DatabaseConfigBuilder {
-    /// Default test date used in tests and builders
-    const DEFAULT_TEST_DATE: (i32, u32, u32) = (2025, 11, 12);
-
     /// Set the builder to test mode
     pub fn test_mode(mut self) -> Self {
         self.is_test_mode = true;
@@ -58,6 +55,10 @@ impl DatabaseConfigBuilder {
     pub fn date(mut self, date: NaiveDate) -> Self {
         self.current_date = date;
         self
+    }
+
+    pub fn date_ymd(mut self, year: i32, month: u32, date: u32) -> Self{
+        self.date(NaiveDate::from_ymd_opt(year, month, date).unwrap())
     }
 
     /// Build the DatabaseConfig
