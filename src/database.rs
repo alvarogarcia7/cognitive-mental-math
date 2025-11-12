@@ -2,16 +2,18 @@ use crate::deck::{Deck, DeckStatus, DeckSummary};
 use crate::row_factories::{DeckRowFactory, ReviewItemRowFactory};
 use crate::spaced_repetition::{AnswerTimedEvaluator, ReviewItem};
 use crate::time_format::format_time_difference;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Timelike, Utc};
 use log::debug;
 use rusqlite::{Connection, Result, params};
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 // Embed migrations from the migrations directory
 refinery::embed_migrations!("migrations");
 
 pub struct Database {
     conn: Connection,
+    override_date: Mutex<Option<NaiveDate>>,
 }
 
 impl Database {
@@ -25,6 +27,10 @@ impl Database {
             )"#;
 
     pub fn new(db_path: &str) -> Result<Self> {
+        Self::with_override_date(db_path, None)
+    }
+
+    pub fn with_override_date(db_path: &str, override_date: Option<NaiveDate>) -> Result<Self> {
         let mut conn = Connection::open(db_path)?;
 
         // Run embedded migrations from the migrations folder
@@ -38,7 +44,25 @@ impl Database {
             }
         }
 
-        Ok(Database { conn })
+        Ok(Database {
+            conn,
+            override_date: Mutex::new(override_date),
+        })
+    }
+
+    /// Helper method to get the current time (overridable via --override-date)
+    fn get_current_time(&self) -> DateTime<Utc> {
+        let override_date_opt = self.override_date.lock().ok().and_then(|d| *d);
+
+        if let Some(override_date) = override_date_opt {
+            // Get current time and replace the date with override date
+            let now = Utc::now();
+            let naive_datetime = override_date.and_hms_opt(now.hour(), now.minute(), now.second())
+                .unwrap_or_else(|| override_date.and_hms_opt(0, 0, 0).unwrap());
+            DateTime::from_naive_utc_and_offset(naive_datetime, Utc)
+        } else {
+            Utc::now()
+        }
     }
 
     pub fn insert_operation(
@@ -136,7 +160,7 @@ impl Database {
     // Deck management methods
 
     pub fn create_deck(&self) -> Result<i64> {
-        let now_utc = Utc::now().to_rfc3339();
+        let now_utc = self.get_current_time().to_rfc3339();
         self.conn.execute(
             "INSERT INTO decks (created_at, status) VALUES (?1, ?2)",
             params![now_utc, DeckStatus::InProgress.as_str()],
@@ -185,7 +209,7 @@ impl Database {
     }
 
     pub fn complete_deck(&self, deck_id: i64) -> Result<()> {
-        let now_utc = Utc::now().to_rfc3339();
+        let now_utc = self.get_current_time().to_rfc3339();
         self.conn.execute(
             "UPDATE decks SET status = ?1, completed_at = ?3 WHERE id = ?2",
             params![DeckStatus::Completed.as_str(), deck_id, now_utc],
@@ -1650,6 +1674,75 @@ mod tests {
         // We'll just verify it doesn't error
         let streak = db.calculate_consecutive_days_streak().unwrap();
         assert!(streak >= 0); // Just verify no error and non-negative
+    }
+
+    // ===== Override date tests =====
+
+    #[test]
+    fn test_create_deck_with_override_date() {
+        use chrono::NaiveDate;
+        let override_date = NaiveDate::from_ymd_opt(2025, 11, 18).unwrap();
+        let db = Database::with_override_date(":memory:", Some(override_date)).unwrap();
+        let deck_id = db.create_deck().unwrap();
+        let deck = db.get_deck(deck_id).unwrap().unwrap();
+
+        // Verify the deck was created
+        assert_eq!(deck.id, deck_id);
+        assert_eq!(deck.status, crate::deck::DeckStatus::InProgress);
+
+        // The created_at date should be on 2025-11-18
+        // We can't check exact time because hours/minutes come from current time
+        assert!(deck.created_at.to_rfc3339().contains("2025-11-18"));
+    }
+
+    #[test]
+    fn test_complete_deck_with_override_date() {
+        use chrono::NaiveDate;
+        let override_date = NaiveDate::from_ymd_opt(2025, 11, 25).unwrap();
+        let db = Database::with_override_date(":memory:", Some(override_date)).unwrap();
+        let deck_id = db.create_deck().unwrap();
+        db.complete_deck(deck_id).unwrap();
+
+        let deck = db.get_deck(deck_id).unwrap().unwrap();
+        assert_eq!(deck.status, crate::deck::DeckStatus::Completed);
+
+        // The completed_at date should be on 2025-11-25
+        assert!(deck.completed_at.is_some());
+        assert!(deck.completed_at.unwrap().to_rfc3339().contains("2025-11-25"));
+    }
+
+    #[test]
+    fn test_database_without_override_date_uses_current_time() {
+        let db = Database::new(":memory:").unwrap();
+        let deck_id = db.create_deck().unwrap();
+        let deck = db.get_deck(deck_id).unwrap().unwrap();
+
+        // Just verify it was created successfully with current date
+        assert_eq!(deck.id, deck_id);
+        assert_eq!(deck.status, crate::deck::DeckStatus::InProgress);
+    }
+
+    #[test]
+    fn test_override_date_affects_multiple_operations() {
+        use chrono::NaiveDate;
+        let override_date = NaiveDate::from_ymd_opt(2025, 12, 1).unwrap();
+        let db = Database::with_override_date(":memory:", Some(override_date)).unwrap();
+
+        // Create and complete multiple decks
+        let deck_id_1 = db.create_deck().unwrap();
+        let deck_id_2 = db.create_deck().unwrap();
+
+        db.complete_deck(deck_id_1).unwrap();
+        db.complete_deck(deck_id_2).unwrap();
+
+        let deck_1 = db.get_deck(deck_id_1).unwrap().unwrap();
+        let deck_2 = db.get_deck(deck_id_2).unwrap().unwrap();
+
+        // Both should use the override date
+        assert!(deck_1.created_at.to_rfc3339().contains("2025-12-01"));
+        assert!(deck_2.created_at.to_rfc3339().contains("2025-12-01"));
+        assert!(deck_1.completed_at.unwrap().to_rfc3339().contains("2025-12-01"));
+        assert!(deck_2.completed_at.unwrap().to_rfc3339().contains("2025-12-01"));
     }
 
     #[test]

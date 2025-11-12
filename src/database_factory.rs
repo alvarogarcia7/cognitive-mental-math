@@ -1,4 +1,5 @@
 use crate::database::Database;
+use chrono::NaiveDate;
 use rusqlite::Result;
 
 /// Database configuration
@@ -8,6 +9,8 @@ pub struct DatabaseConfig {
     pub is_test_mode: bool,
     /// Custom database file path
     pub custom_path: Option<String>,
+    /// Override date for completing decks (for missing streak days)
+    pub override_date: Option<NaiveDate>,
 }
 
 impl DatabaseConfig {
@@ -45,7 +48,7 @@ impl DatabaseFactory {
     /// Creates a database with the specified configuration
     pub fn create(config: DatabaseConfig) -> Result<Database> {
         let path = config.get_path();
-        Database::new(&path)
+        Database::with_override_date(&path, config.override_date)
     }
 
     /// Detects the database configuration from command line arguments
@@ -53,6 +56,7 @@ impl DatabaseFactory {
     /// Supported arguments:
     /// - `--test`: Use in-memory database
     /// - `--db-path <path>`: Use custom database file path
+    /// - `--override-date <YYYY-MM-DD>`: Override the date for deck completion (for missing streak days)
     pub fn detect_config() -> DatabaseConfig {
         let args: Vec<String> = std::env::args().collect();
         let is_test_mode = args.iter().any(|arg| arg == "--test");
@@ -62,9 +66,16 @@ impl DatabaseFactory {
             .position(|arg| arg == "--db-path")
             .and_then(|idx| args.get(idx + 1).cloned());
 
+        let override_date = args
+            .iter()
+            .position(|arg| arg == "--override-date")
+            .and_then(|idx| args.get(idx + 1))
+            .and_then(|date_str| NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok());
+
         DatabaseConfig {
             is_test_mode,
             custom_path,
+            override_date,
         }
     }
 }
@@ -80,6 +91,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: false,
             custom_path: None,
+            override_date: None,
         };
         assert_eq!(config.get_path(), "memory_practice.db");
     }
@@ -89,6 +101,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: true,
             custom_path: None,
+            override_date: None,
         };
         assert_eq!(config.get_path(), ":memory:");
     }
@@ -100,6 +113,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: false,
             custom_path: Some("custom.db".to_string()),
+            override_date: None,
         };
         assert_eq!(config.get_path(), "custom.db");
     }
@@ -111,6 +125,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: true,
             custom_path: Some("custom.db".to_string()),
+            override_date: None,
         };
         assert_eq!(config.get_path(), "custom.db");
     }
@@ -123,6 +138,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: false,
             custom_path: Some(":mem:".to_string()),
+            override_date: None,
         };
         assert_eq!(config.get_path(), ":memory:");
     }
@@ -133,6 +149,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: false,
             custom_path: Some("memory".to_string()),
+            override_date: None,
         };
         assert_eq!(config.get_path(), ":memory:");
     }
@@ -143,6 +160,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: true,
             custom_path: Some(":mem:".to_string()),
+            override_date: None,
         };
         assert_eq!(config.get_path(), ":memory:");
     }
@@ -153,6 +171,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: false,
             custom_path: Some("memory".to_string()),
+            override_date: None,
         };
         assert_eq!(config.get_path(), ":memory:");
     }
@@ -164,6 +183,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: false,
             custom_path: Some("test_database.sqlite3".to_string()),
+            override_date: None,
         };
         assert_eq!(config.get_path(), "test_database.sqlite3");
     }
@@ -173,6 +193,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: false,
             custom_path: Some("/tmp/my_app.db".to_string()),
+            override_date: None,
         };
         assert_eq!(config.get_path(), "/tmp/my_app.db");
     }
@@ -182,6 +203,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: false,
             custom_path: Some("./data/app.db".to_string()),
+            override_date: None,
         };
         assert_eq!(config.get_path(), "./data/app.db");
     }
@@ -193,6 +215,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: true,
             custom_path: None,
+            override_date: None,
         };
         let db = DatabaseFactory::create(config);
         assert!(db.is_ok());
@@ -203,6 +226,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: true,
             custom_path: None,
+            override_date: None,
         };
         let db = DatabaseFactory::create(config).expect("Failed to create in-memory database");
         // Verify the database works by executing a simple query
@@ -214,6 +238,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: false,
             custom_path: Some(":mem:".to_string()),
+            override_date: None,
         };
         let db = DatabaseFactory::create(config)
             .expect("Failed to create in-memory database with :mem: alias");
@@ -225,6 +250,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: false,
             custom_path: Some("memory".to_string()),
+            override_date: None,
         };
         let db = DatabaseFactory::create(config)
             .expect("Failed to create in-memory database with memory alias");
@@ -237,6 +263,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: true,
             custom_path: Some("staging.db".to_string()),
+            override_date: None,
         };
         assert_eq!(config.get_path(), "staging.db");
     }
@@ -249,6 +276,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: true,
             custom_path: Some(":mem:".to_string()),
+            override_date: None,
         };
         assert_eq!(config.get_path(), ":memory:");
     }
@@ -259,6 +287,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: true,
             custom_path: Some("override.db".to_string()),
+            override_date: None,
         };
         assert_eq!(config.get_path(), "override.db");
     }
@@ -269,6 +298,7 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: false,
             custom_path: Some("custom.db".to_string()),
+            override_date: None,
         };
         assert_eq!(config.get_path(), "custom.db");
     }
@@ -279,7 +309,48 @@ mod tests {
         let config = DatabaseConfig {
             is_test_mode: true,
             custom_path: None,
+            override_date: None,
         };
         assert_eq!(config.get_path(), ":memory:");
+    }
+
+    // ===== Override date tests =====
+
+    #[test]
+    fn test_override_date_parsing_valid() {
+        use chrono::NaiveDate;
+        let args = vec!["app".to_string(), "--override-date".to_string(), "2025-11-18".to_string()];
+        let override_date = args
+            .iter()
+            .position(|arg| arg == "--override-date")
+            .and_then(|idx| args.get(idx + 1))
+            .and_then(|date_str| NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok());
+
+        assert!(override_date.is_some());
+        assert_eq!(override_date.unwrap(), NaiveDate::from_ymd_opt(2025, 11, 18).unwrap());
+    }
+
+    #[test]
+    fn test_override_date_invalid_format_ignored() {
+        use chrono::NaiveDate;
+        let args = vec!["app".to_string(), "--override-date".to_string(), "2025/11/18".to_string()];
+        let override_date = args
+            .iter()
+            .position(|arg| arg == "--override-date")
+            .and_then(|idx| args.get(idx + 1))
+            .and_then(|date_str| NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok());
+
+        assert!(override_date.is_none());
+    }
+
+    #[test]
+    fn test_database_config_with_override_date() {
+        use chrono::NaiveDate;
+        let config = DatabaseConfig {
+            is_test_mode: true,
+            custom_path: None,
+            override_date: Some(NaiveDate::from_ymd_opt(2025, 11, 18).unwrap()),
+        };
+        assert_eq!(config.override_date, Some(NaiveDate::from_ymd_opt(2025, 11, 18).unwrap()));
     }
 }
