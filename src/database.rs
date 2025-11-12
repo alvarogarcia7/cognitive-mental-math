@@ -28,13 +28,17 @@ impl Database {
             )"#;
 
     pub fn new(db_path: &str) -> Result<Self> {
-        Self::with_date_provider(db_path, Arc::new(SystemDateProvider))
+        Self::init(db_path, Arc::new(SystemDateProvider))
     }
 
     pub fn with_date_provider(
         db_path: &str,
         date_provider: Arc<dyn DateProvider>,
     ) -> Result<Self> {
+        Self::init(db_path, date_provider)
+    }
+
+    fn init(db_path: &str, date_provider: Arc<dyn DateProvider>) -> Result<Self> {
         let mut conn = Connection::open(db_path)?;
 
         // Run embedded migrations from the migrations folder

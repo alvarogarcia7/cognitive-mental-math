@@ -50,10 +50,7 @@ impl DatabaseFactory {
     /// Creates a database with the specified configuration
     pub fn create(config: DatabaseConfig) -> Result<Database> {
         let path = config.get_path();
-
-        // Create a date provider based on the configuration
         let date_provider: Arc<dyn DateProvider> = Arc::new(OverrideDateProvider::new(config.current_date));
-
         Database::with_date_provider(&path, date_provider)
     }
 
