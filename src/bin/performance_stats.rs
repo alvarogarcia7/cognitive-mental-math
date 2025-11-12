@@ -99,9 +99,7 @@ fn main() {
         .unwrap_or((0, 0, 0.0));
 
     // Calculate consecutive days streak
-    let consecutive_days_streak = db
-        .calculate_consecutive_days_streak()
-        .unwrap_or(0);
+    let consecutive_days_streak = db.calculate_consecutive_days_streak().unwrap_or(0);
 
     println!("Performance Analysis Report");
     println!("===========================");
