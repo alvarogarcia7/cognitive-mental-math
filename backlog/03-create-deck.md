@@ -1,6 +1,0 @@
-Whenever a set of questions is created, a new deck needs to be created for it. This deck will hold all the created questions and answers.
-To create a deck, follow these steps:
-1. **Initialize deck**: When a new block is initiated, create a new deck object in the database. This deck should have a unique identifier, a timestamp for when it was created.
-2. **Link Questions to deck**: As questions are generated for the block, associate each question with the deck by storing the deck ID alongside each question in the database.
-3. **Store User Responses**: As the user answers questions, store their responses in the database, linking each response to both the question ID and the deck ID. This will allow for tracking performance within the context of the deck.
-4. **deck Summary**: At the end of the block, compile a summary of the deck, including the total number of questions answered, the number of correct and incorrect responses, and any patterns in performance. Store this summary in the database linked to the deck ID.
