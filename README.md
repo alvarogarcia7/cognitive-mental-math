@@ -59,7 +59,7 @@ cargo build --release
 
 To run the application:
 ```bash
-cargo run --release
+make run
 ```
 
 ### Development Mode
@@ -82,11 +82,9 @@ cargo build --release
 
 ## Testing
 
-The project includes 164 comprehensive tests:
-
 ### Run All Tests
 ```bash
-cargo test
+make test
 ```
 
 ### Run Specific Test Suite
@@ -112,42 +110,6 @@ make test              # Run all tests
 make build_and_test    # Build and run tests
 make pre-commit        # Format, build, test, and lint
 make pre-push          # Run comprehensive checks
-```
-
-## Project Structure
-
-```
-cognitive-mental-math/
-├── src/
-│   ├── main.rs                    # Application entry point
-│   ├── gui.rs                     # GUI implementation (egui)
-│   ├── quiz_service.rs            # Quiz logic and flow
-│   ├── database.rs                # Database operations
-│   ├── database_factory.rs        # Database configuration
-│   ├── operations.rs              # Math operations handling
-│   ├── spaced_repetition.rs       # SM2 algorithm implementation
-│   ├── answer_evaluator_service.rs # Answer evaluation logic
-│   ├── deck.rs                    # Deck management
-│   ├── row_factories.rs           # Database row mapping
-│   ├── time_format.rs             # Time formatting utilities
-│   ├── lib.rs                     # Public module exports
-│   └── bin/
-│       ├── performance_stats.rs   # Performance analysis tool
-│       └── sm2_scheduler.rs       # Spaced repetition demo
-├── tests/
-│   ├── integration_tests.rs       # Integration tests
-│   └── e2e_tests.rs               # End-to-end tests
-├── migrations/
-│   └── V1__initial_schema.sql    # Database schema
-├── .github/
-│   └── workflows/
-│       └── ci.yml                 # CI/CD pipeline
-├── hooks/
-│   ├── pre-commit                 # Pre-commit hook
-│   └── pre-push                   # Pre-push hook
-├── Cargo.toml                     # Project manifest
-├── Makefile                       # Build automation
-└── backlog/                       # Feature planning documents
 ```
 
 ## Architecture
@@ -179,66 +141,6 @@ cognitive-mental-math/
 - Validates user answers
 - Supports multiple operation types
 
-### Design Patterns
-
-- **Template Method Pattern** - Used in statistics queries for consistent computation across different metrics
-- **Factory Pattern** - Database factory for flexible configuration (memory, test, production modes)
-- **Service Layer Pattern** - Quiz and answer evaluation services encapsulate business logic
-
-## Development Workflow
-
-### Code Quality Standards
-
-1. **Format Code:**
-```bash
-cargo fmt
-```
-
-2. **Run Linter:**
-```bash
-cargo clippy
-```
-
-3. **Check Everything:**
-```bash
-make check    # Runs format check, clippy, and tests
-```
-
-4. **Pre-Commit Checklist:**
-```bash
-make pre-commit    # Format, build, test, and lint
-```
-
-### Git Workflow
-
-1. Create a feature branch:
-```bash
-git checkout -b feature/issue-XXX-description
-```
-
-2. Make changes and commit:
-```bash
-git add .
-git commit -m "Fix #XXX: Descriptive message"
-```
-
-3. Push and create a pull request:
-```bash
-git push origin feature/issue-XXX-description
-```
-
-### Commit Message Format
-
-Follow conventional commits format:
-- `fix: Issue description` - Bug fixes
-- `feat: Feature description` - New features
-- `refactor: Changes description` - Code refactoring
-- `test: Test description` - Test additions/improvements
-- `docs: Documentation description` - Documentation changes
-- `chore: Maintenance description` - Maintenance tasks
-
-Include issue numbers when applicable: `fix #123: Clear issue description`
-
 ## Debugging
 
 ### Enable Logging
@@ -260,59 +162,13 @@ You can inspect the database with:
 sqlite3 ~/.local/share/cognitive-mental-math/memory_practice.db
 ```
 
-## Dependencies
-
-Key dependencies:
-- **eframe 0.29** - GUI framework (egui)
-- **rusqlite 0.32** - SQLite database bindings
-- **refinery 0.8** - Database migrations
-- **rand 0.8** - Random number generation
-- **chrono 0.4** - Date and time handling
-- **sra 0.1** - Spaced repetition algorithms
-- **log 0.4 & env_logger 0.11** - Logging framework
-
-See `Cargo.toml` for complete dependency list.
-
 ## CI/CD Pipeline
 
-The project uses GitHub Actions for continuous integration:
-- Builds on every push
-- Runs 164 comprehensive tests
-- Checks code formatting
-- Runs clippy linter
-- Supports multiple platforms
-
-See `.github/workflows/ci.yml` for pipeline configuration.
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch for your changes
-3. Ensure all tests pass: `cargo test`
-4. Follow code style: `cargo fmt`
-5. Address linting issues: `cargo clippy`
-6. Write clear commit messages
-7. Submit a pull request with a detailed description
-
-## Backlog & Future Enhancements
-
-The project has planned features in the `backlog/` directory:
-
-- **Repeating Failed Questions** - Focus on questions with lower accuracy
-- **Difficulty Levels** - Adjust question difficulty based on performance
-- **Custom Deck Creation** - Allow users to create personalized question decks
-- **Advanced Spaced Repetition** - Enhancements to the SM2 algorithm
-- **Analytics Dashboard** - Visual performance metrics and progress tracking
+The project uses GitHub Actions for continuous integration. See `.github/workflows/ci.yml`
 
 ## License
 
 [License information to be added]
-
-## Support
-
-For issues, questions, or suggestions, please open an issue on GitHub or refer to the documentation in the `.github/` and `hooks/` directories.
 
 ## Development History
 
