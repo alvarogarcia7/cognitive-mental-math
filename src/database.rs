@@ -1,19 +1,20 @@
+use crate::date_provider::{DateProvider, SystemDateProvider};
 use crate::deck::{Deck, DeckStatus, DeckSummary};
 use crate::row_factories::{DeckRowFactory, ReviewItemRowFactory};
 use crate::spaced_repetition::{AnswerTimedEvaluator, ReviewItem};
 use crate::time_format::format_time_difference;
-use chrono::{DateTime, NaiveDate, Timelike, Utc};
+use chrono::{DateTime, Utc};
 use log::debug;
 use rusqlite::{Connection, Result, params};
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::Arc;
 
 // Embed migrations from the migrations directory
 refinery::embed_migrations!("migrations");
 
 pub struct Database {
     conn: Connection,
-    current_date: Mutex<Option<NaiveDate>>,
+    date_provider: Arc<dyn DateProvider>,
 }
 
 impl Database {
@@ -27,10 +28,13 @@ impl Database {
             )"#;
 
     pub fn new(db_path: &str) -> Result<Self> {
-        Self::with_override_date(db_path, None)
+        Self::with_date_provider(db_path, Arc::new(SystemDateProvider))
     }
 
-    pub fn with_override_date(db_path: &str, current_date: Option<NaiveDate>) -> Result<Self> {
+    pub fn with_date_provider(
+        db_path: &str,
+        date_provider: Arc<dyn DateProvider>,
+    ) -> Result<Self> {
         let mut conn = Connection::open(db_path)?;
 
         // Run embedded migrations from the migrations folder
@@ -46,24 +50,13 @@ impl Database {
 
         Ok(Database {
             conn,
-            current_date: Mutex::new(current_date),
+            date_provider,
         })
     }
 
-    /// Helper method to get the current time (uses injected current_date)
+    /// Helper method to get the current time (delegates to date provider)
     fn get_current_time(&self) -> DateTime<Utc> {
-        let current_date_opt = self.current_date.lock().ok().and_then(|d| *d);
-
-        if let Some(current_date) = current_date_opt {
-            // Get current time and replace the date with current date
-            let now = Utc::now();
-            let naive_datetime = current_date
-                .and_hms_opt(now.hour(), now.minute(), now.second())
-                .unwrap_or_else(|| current_date.and_hms_opt(0, 0, 0).unwrap());
-            DateTime::from_naive_utc_and_offset(naive_datetime, Utc)
-        } else {
-            Utc::now()
-        }
+        self.date_provider.get_current_time()
     }
 
     pub fn insert_operation(
@@ -1682,8 +1675,12 @@ mod tests {
     #[test]
     fn test_create_deck_with_override_date() {
         use chrono::NaiveDate;
+        use crate::date_provider::OverrideDateProvider;
+        use std::sync::Arc;
+
         let override_date = NaiveDate::from_ymd_opt(2025, 11, 18).unwrap();
-        let db = Database::with_override_date(":memory:", Some(override_date)).unwrap();
+        let date_provider = Arc::new(OverrideDateProvider::new(override_date));
+        let db = Database::with_date_provider(":memory:", date_provider).unwrap();
         let deck_id = db.create_deck().unwrap();
         let deck = db.get_deck(deck_id).unwrap().unwrap();
 
@@ -1699,8 +1696,12 @@ mod tests {
     #[test]
     fn test_complete_deck_with_override_date() {
         use chrono::NaiveDate;
+        use crate::date_provider::OverrideDateProvider;
+        use std::sync::Arc;
+
         let override_date = NaiveDate::from_ymd_opt(2025, 11, 25).unwrap();
-        let db = Database::with_override_date(":memory:", Some(override_date)).unwrap();
+        let date_provider = Arc::new(OverrideDateProvider::new(override_date));
+        let db = Database::with_date_provider(":memory:", date_provider).unwrap();
         let deck_id = db.create_deck().unwrap();
         db.complete_deck(deck_id).unwrap();
 
@@ -1731,8 +1732,12 @@ mod tests {
     #[test]
     fn test_override_date_affects_multiple_operations() {
         use chrono::NaiveDate;
+        use crate::date_provider::OverrideDateProvider;
+        use std::sync::Arc;
+
         let override_date = NaiveDate::from_ymd_opt(2025, 12, 1).unwrap();
-        let db = Database::with_override_date(":memory:", Some(override_date)).unwrap();
+        let date_provider = Arc::new(OverrideDateProvider::new(override_date));
+        let db = Database::with_date_provider(":memory:", date_provider).unwrap();
 
         // Create and complete multiple decks
         let deck_id_1 = db.create_deck().unwrap();

@@ -1,6 +1,8 @@
 use crate::database::Database;
+use crate::date_provider::{DateProvider, OverrideDateProvider};
 use chrono::NaiveDate;
 use rusqlite::Result;
+use std::sync::Arc;
 
 /// Database configuration
 #[derive(Debug, Clone)]
@@ -48,7 +50,11 @@ impl DatabaseFactory {
     /// Creates a database with the specified configuration
     pub fn create(config: DatabaseConfig) -> Result<Database> {
         let path = config.get_path();
-        Database::with_override_date(&path, Some(config.current_date))
+
+        // Create a date provider based on the configuration
+        let date_provider: Arc<dyn DateProvider> = Arc::new(OverrideDateProvider::new(config.current_date));
+
+        Database::with_date_provider(&path, date_provider)
     }
 
     /// Detects the database configuration from command line arguments
