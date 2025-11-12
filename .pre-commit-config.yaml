@@ -10,17 +10,17 @@ repos:
         pass_filenames: false
         always_run: true
 
-      - id: make-test
-        name: Build & Test
-        entry: make test
+      - id: make-clippy-fix
+        name: Clippy fix (SAST)
+        entry: make clippy-fix
         language: system
         stages: [ pre-commit ]
         pass_filenames: false
         always_run: true
 
-      - id: make-clippy-fix
-        name: Clippy fix (SAST)
-        entry: make clippy-fix
+      - id: make-test
+        name: Build & Test
+        entry: make test
         language: system
         stages: [ pre-commit ]
         pass_filenames: false
@@ -36,17 +36,17 @@ repos:
         pass_filenames: false
         always_run: true
 
-      - id: make-test-push
-        name: make test (push)
-        entry: make test
+      - id: make-clippy-push
+        name: Clippy (push)
+        entry: make clippy
         language: system
         stages: [ pre-push ]
         pass_filenames: false
         always_run: true
 
-      - id: make-clippy-push
-        name: Clippy (push)
-        entry: make clippy
+      - id: make-test-push
+        name: make test (push)
+        entry: make test
         language: system
         stages: [ pre-push ]
         pass_filenames: false
