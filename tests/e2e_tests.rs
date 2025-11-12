@@ -1,4 +1,6 @@
-use memory_practice::database::Database;
+use memory_practice::database::{
+    AnswersRepository, Database, DecksRepository, OperationsRepository,
+};
 use memory_practice::gui::{AppState, MemoryPracticeApp};
 use std::sync::Arc;
 
@@ -27,9 +29,14 @@ fn test_answer_submission_flow() {
     assert_eq!(app.get_current_question_index(), 1);
     assert_eq!(app.get_results().len(), 1);
 
-    assert_eq!(db.count_operations().unwrap(), 1);
-    assert_eq!(db.count_answers().unwrap(), 1);
-    assert_eq!(db.count_decks().unwrap(), 1);
+    assert_eq!(OperationsRepository::new(&db.conn).count().unwrap(), 1);
+    assert_eq!(AnswersRepository::new(&db.conn).count().unwrap(), 1);
+    assert_eq!(
+        DecksRepository::new(&db.conn, Box::new(|| db.get_current_time()))
+            .count()
+            .unwrap(),
+        1
+    );
 }
 
 #[test]
@@ -49,8 +56,8 @@ fn test_complete_question_block() {
     assert_eq!(app.get_results().len(), 10);
 
     // Database should have all operations and answers
-    assert_eq!(db.count_operations().unwrap(), 10);
-    assert_eq!(db.count_answers().unwrap(), 10);
+    assert_eq!(OperationsRepository::new(&db.conn).count().unwrap(), 10);
+    assert_eq!(AnswersRepository::new(&db.conn).count().unwrap(), 10);
 }
 
 #[test]
@@ -65,7 +72,7 @@ fn test_empty_answer_not_submitted() {
     // Should still be on first question
     assert_eq!(app.get_current_question_index(), 0);
     assert_eq!(app.get_results().len(), 0);
-    assert_eq!(db.count_answers().unwrap(), 0);
+    assert_eq!(AnswersRepository::new(&db.conn).count().unwrap(), 0);
 }
 
 #[test]
@@ -116,8 +123,8 @@ fn test_multiple_answers_in_sequence() {
     }
 
     assert_eq!(app.get_results().len(), 5);
-    assert_eq!(db.count_operations().unwrap(), 5);
-    assert_eq!(db.count_answers().unwrap(), 5);
+    assert_eq!(OperationsRepository::new(&db.conn).count().unwrap(), 5);
+    assert_eq!(AnswersRepository::new(&db.conn).count().unwrap(), 5);
 }
 
 #[test]
@@ -172,12 +179,12 @@ fn test_database_persistence_across_submissions() {
     }
 
     // Verify database contains all data
-    assert_eq!(db.count_operations().unwrap(), 3);
-    assert_eq!(db.count_answers().unwrap(), 3);
+    assert_eq!(OperationsRepository::new(&db.conn).count().unwrap(), 3);
+    assert_eq!(AnswersRepository::new(&db.conn).count().unwrap(), 3);
 
     // Verify each answer is stored correctly
     for answer_id in 1..=3 {
-        let answer = db.get_answer(answer_id).unwrap();
+        let answer = AnswersRepository::new(&db.conn).get(answer_id).unwrap();
         assert!(answer.is_some());
     }
 }
@@ -191,7 +198,7 @@ fn test_timing_data_recorded() {
     app.set_answer(0, "50".to_string());
     app.submit_answer();
 
-    let answer = db.get_answer(1).unwrap().unwrap();
+    let answer = AnswersRepository::new(&db.conn).get(1).unwrap().unwrap();
     // Time should be a positive number (even if very small)
     assert!(answer.time_spent_seconds >= 0.0);
 }

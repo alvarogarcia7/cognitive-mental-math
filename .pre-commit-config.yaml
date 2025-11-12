@@ -1,17 +1,10 @@
+fail_fast: true
 repos:
   - repo: local
     hooks:
       - id: make-fmt
         name: Format code
         entry: make fmt
-        language: system
-        stages: [ pre-commit ]
-        pass_filenames: false
-        always_run: true
-
-      - id: make-test
-        name: Build & Test
-        entry: make test
         language: system
         stages: [ pre-commit ]
         pass_filenames: false
@@ -25,11 +18,27 @@ repos:
         pass_filenames: false
         always_run: true
 
+      - id: make-test
+        name: Build & Test
+        entry: make test
+        language: system
+        stages: [ pre-commit ]
+        pass_filenames: false
+        always_run: true
+
 #### PRE-PUSH HOOKS ####
 
-      - id: make-fmt-push
-        name: Format code
+      - id: make-fmt-check-push
+        name: Check Format code (push)
         entry: make fmt-check
+        language: system
+        stages: [ pre-push ]
+        pass_filenames: false
+        always_run: true
+
+      - id: make-clippy-push
+        name: Check Clippy (push)
+        entry: make clippy
         language: system
         stages: [ pre-push ]
         pass_filenames: false
@@ -38,14 +47,6 @@ repos:
       - id: make-test-push
         name: make test (push)
         entry: make test
-        language: system
-        stages: [ pre-push ]
-        pass_filenames: false
-        always_run: true
-
-      - id: make-clippy-push
-        name: Clippy (push)
-        entry: make clippy
         language: system
         stages: [ pre-push ]
         pass_filenames: false
