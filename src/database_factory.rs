@@ -82,7 +82,7 @@ impl DatabaseConfig {
     /// Priority:
     /// 1. If custom_path is ":mem:" or "memory", use in-memory database
     /// 2. If custom_path is provided, use that path
-    /// 3. If is_builder is true, use in-memory database
+    /// 3. If is_test_mode is true, use in-memory database
     /// 4. Otherwise, use default "memory_practice.db"
     pub fn get_path(&self) -> String {
         // Check if custom path is provided
