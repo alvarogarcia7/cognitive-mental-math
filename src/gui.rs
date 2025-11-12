@@ -10,7 +10,6 @@ use std::time::Instant;
 
 pub struct MemoryPracticeApp {
     db: Arc<Database>,
-    service: QuizService,
     questions: Vec<crate::operations::Operation>,
     current_question_index: usize,
     user_answers: Vec<String>,
@@ -29,10 +28,8 @@ pub enum AppState {
 
 impl MemoryPracticeApp {
     pub fn new(db: Arc<Database>, questions_per_block: usize) -> Self {
-        let service = QuizService::new(db.clone());
         Self {
             db,
-            service,
             questions: Vec::new(),
             current_question_index: 0,
             user_answers: Vec::new(),
@@ -42,6 +39,11 @@ impl MemoryPracticeApp {
             current_deck_id: None,
             questions_per_block,
         }
+    }
+
+    /// Create a QuizService with a reference to the database connection
+    fn create_service(&self) -> QuizService<'_> {
+        QuizService::new(&self.db.conn, self.db.clone())
     }
 
     fn submit_current_answer(&mut self) {
@@ -62,9 +64,8 @@ impl MemoryPracticeApp {
                 .unwrap_or(0.0);
 
             // Use service to process the answer
-            let result = self
-                .service
-                .process_answer(question, user_answer, time_spent);
+            let service = self.create_service();
+            let result = service.process_answer(question, user_answer, time_spent);
             self.results.push(result);
 
             // Move to next question
@@ -82,7 +83,8 @@ impl MemoryPracticeApp {
 
     fn write_results_to_database(&mut self) {
         if let Some(deck_id) = self.current_deck_id {
-            self.results = self.service.persist_results(&self.results, deck_id);
+            let service = self.create_service();
+            self.results = service.persist_results(&self.results, deck_id);
         }
     }
 
@@ -92,7 +94,8 @@ impl MemoryPracticeApp {
             self.write_results_to_database();
 
             // Use service to complete the deck
-            self.service.complete_deck(deck_id, &self.results);
+            let service = self.create_service();
+            service.complete_deck(deck_id, &self.results);
         }
     }
 
@@ -113,7 +116,8 @@ impl MemoryPracticeApp {
         self.current_deck_id = repo.create().ok();
 
         // Fetch due reviews using service
-        let mut questions = self.service.fetch_due_reviews();
+        let service = self.create_service();
+        let mut questions = service.fetch_due_reviews();
 
         // Generate new questions to fill the block
         let mut new_questions =
