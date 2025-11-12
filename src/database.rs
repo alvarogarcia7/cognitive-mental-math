@@ -57,7 +57,8 @@ impl Database {
         if let Some(override_date) = override_date_opt {
             // Get current time and replace the date with override date
             let now = Utc::now();
-            let naive_datetime = override_date.and_hms_opt(now.hour(), now.minute(), now.second())
+            let naive_datetime = override_date
+                .and_hms_opt(now.hour(), now.minute(), now.second())
                 .unwrap_or_else(|| override_date.and_hms_opt(0, 0, 0).unwrap());
             DateTime::from_naive_utc_and_offset(naive_datetime, Utc)
         } else {
@@ -1708,7 +1709,12 @@ mod tests {
 
         // The completed_at date should be on 2025-11-25
         assert!(deck.completed_at.is_some());
-        assert!(deck.completed_at.unwrap().to_rfc3339().contains("2025-11-25"));
+        assert!(
+            deck.completed_at
+                .unwrap()
+                .to_rfc3339()
+                .contains("2025-11-25")
+        );
     }
 
     #[test]
@@ -1741,8 +1747,20 @@ mod tests {
         // Both should use the override date
         assert!(deck_1.created_at.to_rfc3339().contains("2025-12-01"));
         assert!(deck_2.created_at.to_rfc3339().contains("2025-12-01"));
-        assert!(deck_1.completed_at.unwrap().to_rfc3339().contains("2025-12-01"));
-        assert!(deck_2.completed_at.unwrap().to_rfc3339().contains("2025-12-01"));
+        assert!(
+            deck_1
+                .completed_at
+                .unwrap()
+                .to_rfc3339()
+                .contains("2025-12-01")
+        );
+        assert!(
+            deck_2
+                .completed_at
+                .unwrap()
+                .to_rfc3339()
+                .contains("2025-12-01")
+        );
     }
 
     #[test]

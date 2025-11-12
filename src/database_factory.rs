@@ -319,7 +319,11 @@ mod tests {
     #[test]
     fn test_override_date_parsing_valid() {
         use chrono::NaiveDate;
-        let args = vec!["app".to_string(), "--override-date".to_string(), "2025-11-18".to_string()];
+        let args = vec![
+            "app".to_string(),
+            "--override-date".to_string(),
+            "2025-11-18".to_string(),
+        ];
         let override_date = args
             .iter()
             .position(|arg| arg == "--override-date")
@@ -327,13 +331,20 @@ mod tests {
             .and_then(|date_str| NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok());
 
         assert!(override_date.is_some());
-        assert_eq!(override_date.unwrap(), NaiveDate::from_ymd_opt(2025, 11, 18).unwrap());
+        assert_eq!(
+            override_date.unwrap(),
+            NaiveDate::from_ymd_opt(2025, 11, 18).unwrap()
+        );
     }
 
     #[test]
     fn test_override_date_invalid_format_ignored() {
         use chrono::NaiveDate;
-        let args = vec!["app".to_string(), "--override-date".to_string(), "2025/11/18".to_string()];
+        let args = vec![
+            "app".to_string(),
+            "--override-date".to_string(),
+            "2025/11/18".to_string(),
+        ];
         let override_date = args
             .iter()
             .position(|arg| arg == "--override-date")
@@ -351,6 +362,9 @@ mod tests {
             custom_path: None,
             override_date: Some(NaiveDate::from_ymd_opt(2025, 11, 18).unwrap()),
         };
-        assert_eq!(config.override_date, Some(NaiveDate::from_ymd_opt(2025, 11, 18).unwrap()));
+        assert_eq!(
+            config.override_date,
+            Some(NaiveDate::from_ymd_opt(2025, 11, 18).unwrap())
+        );
     }
 }
