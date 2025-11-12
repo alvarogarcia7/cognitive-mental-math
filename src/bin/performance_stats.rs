@@ -1,3 +1,4 @@
+use chrono::Utc;
 use memory_practice::database::Database;
 use memory_practice::spaced_repetition::AnswerTimedEvaluator;
 use std::env;
@@ -101,10 +102,27 @@ fn main() {
     // Calculate consecutive days streak
     let consecutive_days_streak = db.calculate_consecutive_days_streak().unwrap_or(0);
 
+    // Get days with and without answers in the last 10 days
+    let now = Utc::now();
+    let days_with_answers = db.get_days_with_answers(now).unwrap_or_default();
+    let missing_days = db.get_missing_days_in_streak(10, now).unwrap_or_default();
+
     println!("Performance Analysis Report");
     println!("===========================");
     println!();
     println!("Consecutive Days Streak: {} days", consecutive_days_streak);
+    if !days_with_answers.is_empty() {
+        println!(
+            "Days with answers (last 10 days): {}",
+            days_with_answers.join(", ")
+        );
+    }
+    if !missing_days.is_empty() {
+        println!(
+            "Days without answers (last 10 days): {}",
+            missing_days.join(", ")
+        );
+    }
     println!();
 
     // Iterate through all operation types (sorted for consistent output)
@@ -137,32 +155,46 @@ fn main() {
         print_stats("Global (all time)", &global);
 
         // Print last 30 days stats
-        print_stats("Last 30 days", &last_30);
         if let (Some(global_eval), Some(last_30_eval)) = (global, last_30) {
-            print_improvement(
-                global_eval.average,
-                last_30_eval.average,
-                "Last 30 days vs Global",
-            );
+            if stats_are_same(&global_eval, &last_30_eval) {
+                println!("  Last 30 days - Same data");
+            } else {
+                print_stats("Last 30 days", &Some(last_30_eval));
+                print_improvement(
+                    global_eval.average,
+                    last_30_eval.average,
+                    "Last 30 days vs Global",
+                );
+            }
+        } else {
+            print_stats("Last 30 days", &last_30);
         }
 
         // Print last 10 decks stats
-        print_stats("Last 10 decks", &last_10);
         if let (Some(global_eval), Some(last_10_eval)) = (global, last_10) {
-            print_improvement(
-                global_eval.average,
-                last_10_eval.average,
-                "Last 10 decks vs Global",
-            );
+            if stats_are_same(&global_eval, &last_10_eval) {
+                println!("  Last 10 decks - Same data");
+            } else {
+                print_stats("Last 10 decks", &Some(last_10_eval));
+                print_improvement(
+                    global_eval.average,
+                    last_10_eval.average,
+                    "Last 10 decks vs Global",
+                );
+            }
+        } else {
+            print_stats("Last 10 decks", &last_10);
         }
 
         // Compare last 30 days vs last 10 decks
         if let (Some(last_30_eval), Some(last_10_eval)) = (last_30, last_10) {
-            print_improvement(
-                last_30_eval.average,
-                last_10_eval.average,
-                "Last 10 decks vs Last 30 days",
-            );
+            if !stats_are_same(&last_30_eval, &last_10_eval) {
+                print_improvement(
+                    last_30_eval.average,
+                    last_10_eval.average,
+                    "Last 10 decks vs Last 30 days",
+                );
+            }
         }
 
         println!();
@@ -176,10 +208,20 @@ fn main() {
     println!("Total Completed Operations:");
     print_accuracy_stats("Global (all time)", &Some(total_accuracy));
     if total_accuracy_last_30_days.1 > 0 {
-        print_accuracy_stats("Last 30 days", &Some(total_accuracy_last_30_days));
+        // Check if data is the same
+        if total_accuracy == total_accuracy_last_30_days {
+            println!("  Last 30 days - Same data");
+        } else {
+            print_accuracy_stats("Last 30 days", &Some(total_accuracy_last_30_days));
+        }
     }
     if total_accuracy_last_10_decks.1 > 0 {
-        print_accuracy_stats("Last 10 decks", &Some(total_accuracy_last_10_decks));
+        // Check if data is the same
+        if total_accuracy == total_accuracy_last_10_decks {
+            println!("  Last 10 decks - Same data");
+        } else {
+            print_accuracy_stats("Last 10 decks", &Some(total_accuracy_last_10_decks));
+        }
     }
 }
 
@@ -188,7 +230,7 @@ fn print_stats(label: &str, stats: &Option<AnswerTimedEvaluator>) {
     match stats {
         Some(eval) => {
             println!(
-                "  {} - Average: {:.3}s, Std Dev: {:.3}s",
+                "  {} - Average: {:.2}s, Std Dev: {:.2}s",
                 label, eval.average, eval.standard_deviation
             );
         }
@@ -213,6 +255,13 @@ fn print_accuracy_stats(label: &str, stats: &Option<(i64, i64, f64)>) {
     }
 }
 
+/// Check if two timing evaluators have the same stats (within tolerance)
+fn stats_are_same(eval1: &AnswerTimedEvaluator, eval2: &AnswerTimedEvaluator) -> bool {
+    // Consider stats the same if average and std dev are equal within 0.001 tolerance
+    (eval1.average - eval2.average).abs() < 0.001
+        && (eval1.standard_deviation - eval2.standard_deviation).abs() < 0.001
+}
+
 /// Print improvement (or decline) between two average times
 fn print_improvement(from_avg: f64, to_avg: f64, label: &str) {
     let improvement = from_avg - to_avg;
@@ -220,12 +269,12 @@ fn print_improvement(from_avg: f64, to_avg: f64, label: &str) {
 
     if improvement > 0.001 {
         println!(
-            "    ✓ {} - Improvement: {:.3}s ({:.1}%) faster",
+            "    ✓ {} - Improvement: {:.2}s ({:.1}%) faster",
             label, improvement, improvement_percent
         );
     } else if improvement < -0.001 {
         println!(
-            "    ✗ {} - Decline: {:.3}s ({:.1}%) slower",
+            "    ✗ {} - Decline: {:.2}s ({:.1}%) slower",
             label, -improvement, -improvement_percent
         );
     } else {

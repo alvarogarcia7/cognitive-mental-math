@@ -88,3 +88,15 @@ demo-scheduler: build ## Run the demo scheduler
 	cargo run --bin sm2_scheduler 2 1 2.5
 	cargo run --bin sm2_scheduler 2 3 2.5
 .PHONY: demo-scheduler
+
+performance-stats: ## Run performance statistics
+	DB=custom.db $(MAKE) performance-stats-with
+.PHONY: performance-stats
+
+performance-stats-with: build ## Run performance statistics with in-memory database
+	@if [ -z "$(DB)" ]; then echo "Error: DB parameter required (format: <path>). Usage: make performance-stats-with DB=custom.db"; exit 1; fi
+	@cargo run --bin performance_stats -- $(DB)
+.PHONY: performance-stats-with
+
+
+
