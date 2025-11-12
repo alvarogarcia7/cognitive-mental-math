@@ -13,7 +13,7 @@ refinery::embed_migrations!("migrations");
 
 pub struct Database {
     conn: Connection,
-    override_date: Mutex<Option<NaiveDate>>,
+    current_date: Mutex<Option<NaiveDate>>,
 }
 
 impl Database {
@@ -30,7 +30,7 @@ impl Database {
         Self::with_override_date(db_path, None)
     }
 
-    pub fn with_override_date(db_path: &str, override_date: Option<NaiveDate>) -> Result<Self> {
+    pub fn with_override_date(db_path: &str, current_date: Option<NaiveDate>) -> Result<Self> {
         let mut conn = Connection::open(db_path)?;
 
         // Run embedded migrations from the migrations folder
@@ -46,20 +46,20 @@ impl Database {
 
         Ok(Database {
             conn,
-            override_date: Mutex::new(override_date),
+            current_date: Mutex::new(current_date),
         })
     }
 
-    /// Helper method to get the current time (overridable via --override-date)
+    /// Helper method to get the current time (uses injected current_date)
     fn get_current_time(&self) -> DateTime<Utc> {
-        let override_date_opt = self.override_date.lock().ok().and_then(|d| *d);
+        let current_date_opt = self.current_date.lock().ok().and_then(|d| *d);
 
-        if let Some(override_date) = override_date_opt {
-            // Get current time and replace the date with override date
+        if let Some(current_date) = current_date_opt {
+            // Get current time and replace the date with current date
             let now = Utc::now();
-            let naive_datetime = override_date
+            let naive_datetime = current_date
                 .and_hms_opt(now.hour(), now.minute(), now.second())
-                .unwrap_or_else(|| override_date.and_hms_opt(0, 0, 0).unwrap());
+                .unwrap_or_else(|| current_date.and_hms_opt(0, 0, 0).unwrap());
             DateTime::from_naive_utc_and_offset(naive_datetime, Utc)
         } else {
             Utc::now()
