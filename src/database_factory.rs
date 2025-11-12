@@ -17,7 +17,7 @@ pub struct DatabaseConfig {
 
 impl Default for DatabaseConfig {
     fn default() -> Self {
-        Self::for_production()
+        Self::non_test_mode()
     }
 }
 
@@ -39,7 +39,7 @@ impl DatabaseConfig {
     }
 
     /// Create a test mode config with a default test date
-    pub fn for_test() -> Self {
+    pub fn test_mode() -> Self {
         Self::new(
             true,
             None,
@@ -48,7 +48,7 @@ impl DatabaseConfig {
     }
 
     /// Create a production mode config with a default test date
-    pub fn for_production() -> Self {
+    pub fn non_test_mode() -> Self {
         Self::new(
             false,
             None,
@@ -152,13 +152,13 @@ mod tests {
 
     #[test]
     fn test_default_path_production_mode() {
-        let config = DatabaseConfig::for_production();
+        let config = DatabaseConfig::non_test_mode();
         assert_eq!(config.get_path(), "memory_practice.db");
     }
 
     #[test]
     fn test_default_path_test_mode() {
-        let config = DatabaseConfig::for_test();
+        let config = DatabaseConfig::test_mode();
         assert_eq!(config.get_path(), ":memory:");
     }
 
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_custom_path_in_production_mode() {
-        let config = DatabaseConfig::for_production().with_path(Some("custom.db"));
+        let config = DatabaseConfig::non_test_mode().with_path(Some("custom.db"));
         assert_eq!(config.get_path(), "custom.db");
     }
 
@@ -174,7 +174,7 @@ mod tests {
     fn test_custom_path_overrides_test_mode() {
         // When both --test and --db-path custom.db are provided,
         // custom path takes priority over test mode
-        let config = DatabaseConfig::for_test().with_path(Some("custom.db"));
+        let config = DatabaseConfig::test_mode().with_path(Some("custom.db"));
         assert_eq!(config.get_path(), "custom.db");
     }
 
@@ -183,28 +183,28 @@ mod tests {
     #[test]
     fn test_custom_path_mem_alias_colon() {
         // ":mem:" should be recognized as in-memory database alias
-        let config = DatabaseConfig::for_production().with_path(Some(":mem:"));
+        let config = DatabaseConfig::non_test_mode().with_path(Some(":mem:"));
         assert_eq!(config.get_path(), ":memory:");
     }
 
     #[test]
     fn test_custom_path_mem_alias_word() {
         // "memory" should be recognized as in-memory database alias
-        let config = DatabaseConfig::for_production().with_path(Some("memory"));
+        let config = DatabaseConfig::non_test_mode().with_path(Some("memory"));
         assert_eq!(config.get_path(), ":memory:");
     }
 
     #[test]
     fn test_custom_path_mem_alias_overrides_test_mode() {
         // Even with --test, ":mem:" alias should work
-        let config = DatabaseConfig::for_test().with_path(Some(":mem:"));
+        let config = DatabaseConfig::test_mode().with_path(Some(":mem:"));
         assert_eq!(config.get_path(), ":memory:");
     }
 
     #[test]
     fn test_custom_path_memory_alias_in_production() {
         // "memory" alias should work in production mode too
-        let config = DatabaseConfig::for_production().with_path(Some("memory"));
+        let config = DatabaseConfig::non_test_mode().with_path(Some("memory"));
         assert_eq!(config.get_path(), ":memory:");
     }
 
@@ -212,19 +212,19 @@ mod tests {
 
     #[test]
     fn test_custom_path_with_extension() {
-        let config = DatabaseConfig::for_production().with_path(Some("test_database.sqlite3"));
+        let config = DatabaseConfig::non_test_mode().with_path(Some("test_database.sqlite3"));
         assert_eq!(config.get_path(), "test_database.sqlite3");
     }
 
     #[test]
     fn test_custom_path_with_directory() {
-        let config = DatabaseConfig::for_production().with_path(Some("/tmp/my_app.db"));
+        let config = DatabaseConfig::non_test_mode().with_path(Some("/tmp/my_app.db"));
         assert_eq!(config.get_path(), "/tmp/my_app.db");
     }
 
     #[test]
     fn test_custom_path_relative_directory() {
-        let config = DatabaseConfig::for_production().with_path(Some("./data/app.db"));
+        let config = DatabaseConfig::non_test_mode().with_path(Some("./data/app.db"));
         assert_eq!(config.get_path(), "./data/app.db");
     }
 
@@ -232,14 +232,14 @@ mod tests {
 
     #[test]
     fn test_create_with_test_mode() {
-        let config = DatabaseConfig::for_test();
+        let config = DatabaseConfig::test_mode();
         let db = DatabaseFactory::create(config);
         assert!(db.is_ok());
     }
 
     #[test]
     fn test_create_with_memory_database() {
-        let config = DatabaseConfig::for_test();
+        let config = DatabaseConfig::test_mode();
         let db = DatabaseFactory::create(config).expect("Failed to create in-memory database");
         // Verify the database works by executing a simple query
         assert!(db.count_operations().is_ok());
@@ -247,7 +247,7 @@ mod tests {
 
     #[test]
     fn test_create_with_memory_alias_mem() {
-        let config = DatabaseConfig::for_production().with_path(Some(":mem:"));
+        let config = DatabaseConfig::non_test_mode().with_path(Some(":mem:"));
         let db = DatabaseFactory::create(config)
             .expect("Failed to create in-memory database with :mem: alias");
         assert!(db.count_operations().is_ok());
@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_create_with_memory_alias_word() {
-        let config = DatabaseConfig::for_production().with_path(Some("memory"));
+        let config = DatabaseConfig::non_test_mode().with_path(Some("memory"));
         let db = DatabaseFactory::create(config)
             .expect("Failed to create in-memory database with memory alias");
         assert!(db.count_operations().is_ok());
@@ -264,7 +264,7 @@ mod tests {
     #[test]
     fn test_custom_path_with_test_mode() {
         // Custom path should override test mode
-        let config = DatabaseConfig::for_test().with_path(Some("staging.db"));
+        let config = DatabaseConfig::test_mode().with_path(Some("staging.db"));
         assert_eq!(config.get_path(), "staging.db");
     }
 
@@ -273,28 +273,28 @@ mod tests {
     #[test]
     fn test_priority_mem_alias_over_test_mode() {
         // Priority: :mem: alias > test mode
-        let config = DatabaseConfig::for_test().with_path(Some(":mem:"));
+        let config = DatabaseConfig::test_mode().with_path(Some(":mem:"));
         assert_eq!(config.get_path(), ":memory:");
     }
 
     #[test]
     fn test_priority_custom_path_over_test_mode() {
         // Priority: custom path > test mode
-        let config = DatabaseConfig::for_test().with_path(Some("override.db"));
+        let config = DatabaseConfig::test_mode().with_path(Some("override.db"));
         assert_eq!(config.get_path(), "override.db");
     }
 
     #[test]
     fn test_priority_custom_path_over_default() {
         // Priority: custom path > default
-        let config = DatabaseConfig::for_production().with_path(Some("custom.db"));
+        let config = DatabaseConfig::non_test_mode().with_path(Some("custom.db"));
         assert_eq!(config.get_path(), "custom.db");
     }
 
     #[test]
     fn test_priority_test_mode_over_default() {
         // Priority: test mode > default
-        let config = DatabaseConfig::for_test();
+        let config = DatabaseConfig::test_mode();
         assert_eq!(config.get_path(), ":memory:");
     }
 
@@ -337,7 +337,7 @@ mod tests {
     #[test]
     fn test_database_config_with_current_date() {
         use chrono::NaiveDate;
-        let config = DatabaseConfig::for_test().with_date(NaiveDate::from_ymd_opt(2025, 11, 18).unwrap());
+        let config = DatabaseConfig::test_mode().with_date(NaiveDate::from_ymd_opt(2025, 11, 18).unwrap());
         assert_eq!(
             config.current_date,
             NaiveDate::from_ymd_opt(2025, 11, 18).unwrap()
