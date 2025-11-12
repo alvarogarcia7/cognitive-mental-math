@@ -57,7 +57,7 @@ impl DatabaseConfigBuilder {
         self
     }
 
-    pub fn date_ymd(mut self, year: i32, month: u32, date: u32) -> Self{
+    pub fn date_ymd(self, year: i32, month: u32, date: u32) -> Self{
         self.date(NaiveDate::from_ymd_opt(year, month, date).unwrap())
     }
 

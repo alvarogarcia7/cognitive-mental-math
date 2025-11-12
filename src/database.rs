@@ -758,6 +758,7 @@ pub struct AnswerRecord {
 
 #[cfg(test)]
 mod tests {
+    use crate::database_factory::{DatabaseConfig, DatabaseConfigBuilder, DatabaseFactory};
     use super::*;
 
     fn create_test_db() -> Database {
@@ -1791,6 +1792,20 @@ mod tests {
         // With one recent answer today, there should be 1 day with answers
         let days_with_answers = db.get_days_with_answers(Utc::now()).unwrap();
         assert_eq!(days_with_answers.len(), 1);
+    }
+
+
+    #[test]
+    fn test_get_days_with_answers_with_for_given_day() {
+        let db_config = DatabaseConfig::builder().test_mode().date_ymd(2025, 11, 12).build();
+        let db = DatabaseFactory::create(db_config).unwrap();
+        let deck_id = db.create_deck().unwrap();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 1.0, Some(deck_id))
+            .unwrap();
+
+        let days_with_answers = db.get_days_with_answers(Utc::now()).unwrap();
+        assert_eq!(days_with_answers, vec!["2025-11-12"]);
     }
 
     #[test]
