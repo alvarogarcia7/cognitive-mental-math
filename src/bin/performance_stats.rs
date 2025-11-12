@@ -44,8 +44,7 @@ fn main() {
         return;
     }
 
-    let analytics1 = Analytics::new(&db.conn);
-    let last_30_days_stats = match analytics1.time_statistics().all_operations_last_30_days() {
+    let last_30_days_stats = match analytics.time_statistics().all_operations_last_30_days() {
         Ok(stats) => stats,
         Err(e) => {
             eprintln!("Error fetching last 30 days statistics: {}", e);
@@ -53,8 +52,7 @@ fn main() {
         }
     };
 
-    let analytics2 = Analytics::new(&db.conn);
-    let last_10_decks_stats = match analytics2.time_statistics().all_operations_last_10_decks() {
+    let last_10_decks_stats = match analytics.time_statistics().all_operations_last_10_decks() {
         Ok(stats) => stats,
         Err(e) => {
             eprintln!("Error fetching last 10 decks statistics: {}", e);
@@ -63,8 +61,7 @@ fn main() {
     };
 
     // Fetch accuracy statistics
-    let analytics3 = Analytics::new(&db.conn);
-    let global_accuracy_stats = match analytics3.accuracy().all_operations() {
+    let global_accuracy_stats = match analytics.accuracy().all_operations() {
         Ok(stats) => stats,
         Err(e) => {
             eprintln!("Error fetching global accuracy statistics: {}", e);
@@ -72,8 +69,7 @@ fn main() {
         }
     };
 
-    let analytics4 = Analytics::new(&db.conn);
-    let last_30_days_accuracy_stats = match analytics4.accuracy().all_operations_last_30_days() {
+    let last_30_days_accuracy_stats = match analytics.accuracy().all_operations_last_30_days() {
         Ok(stats) => stats,
         Err(e) => {
             eprintln!("Error fetching last 30 days accuracy statistics: {}", e);
