@@ -1,4 +1,4 @@
-use memory_practice::database::Database;
+use memory_practice::database::{AnswersRepository, Database, OperationsRepository};
 use memory_practice::operations::{Operation, OperationType, generate_question_block};
 
 #[test]
@@ -6,17 +6,17 @@ fn test_store_and_retrieve_operation() {
     let db = Database::new(":memory:").unwrap();
     let operation = Operation::new(OperationType::Addition, 15, 25);
 
-    let op_id = db
-        .insert_operation(
-            operation.operation_type.as_str(),
-            operation.operand1,
-            operation.operand2,
-            operation.result,
-            None,
-        )
+    let operation_type = operation.operation_type.as_str();
+    let operand1 = operation.operand1;
+    let operand2 = operation.operand2;
+    let result = operation.result;
+    let repo = OperationsRepository::new(&db.conn);
+    let op_id = repo
+        .insert(operation_type, operand1, operand2, result, None)
         .unwrap();
 
-    let stored = db.get_operation(op_id).unwrap().unwrap();
+    let repo1 = OperationsRepository::new(&db.conn);
+    let stored = repo1.get(op_id).unwrap().unwrap();
 
     assert_eq!(stored.operation_type, "ADD");
     assert_eq!(stored.operand1, 15);
@@ -30,14 +30,13 @@ fn test_full_question_answer_workflow() {
     let operation = Operation::new(OperationType::Multiplication, 6, 7);
 
     // Store the operation
-    let op_id = db
-        .insert_operation(
-            operation.operation_type.as_str(),
-            operation.operand1,
-            operation.operand2,
-            operation.result,
-            None,
-        )
+    let operation_type = operation.operation_type.as_str();
+    let operand1 = operation.operand1;
+    let operand2 = operation.operand2;
+    let result = operation.result;
+    let repo = OperationsRepository::new(&db.conn);
+    let op_id = repo
+        .insert(operation_type, operand1, operand2, result, None)
         .unwrap();
 
     // User answers correctly
@@ -45,11 +44,14 @@ fn test_full_question_answer_workflow() {
     let is_correct = operation.check_answer(user_answer);
     let time_spent = 2.3;
 
-    db.insert_answer(op_id, user_answer, is_correct, time_spent, None)
+    let repo1 = AnswersRepository::new(&db.conn);
+    repo1
+        .insert(op_id, user_answer, is_correct, time_spent, None)
         .unwrap();
 
     // Verify the answer was stored correctly
-    let answer = db.get_answer(1).unwrap().unwrap();
+    let repo2 = AnswersRepository::new(&db.conn);
+    let answer = repo2.get(1).unwrap().unwrap();
     assert_eq!(answer.operation_id, op_id);
     assert_eq!(answer.user_answer, 42);
     assert!(answer.is_correct);
@@ -63,17 +65,17 @@ fn test_question_block_storage() {
 
     // Store all operations from the block
     for operation in &block {
-        db.insert_operation(
-            operation.operation_type.as_str(),
-            operation.operand1,
-            operation.operand2,
-            operation.result,
-            None,
-        )
-        .unwrap();
+        let operation_type = operation.operation_type.as_str();
+        let operand1 = operation.operand1;
+        let operand2 = operation.operand2;
+        let result = operation.result;
+        let repo = OperationsRepository::new(&db.conn);
+        repo.insert(operation_type, operand1, operand2, result, None)
+            .unwrap();
     }
 
-    assert_eq!(db.count_operations().unwrap(), 10);
+    let repo = OperationsRepository::new(&db.conn);
+    assert_eq!(repo.count().unwrap(), 10);
 }
 
 #[test]
@@ -81,14 +83,13 @@ fn test_correct_and_incorrect_answers() {
     let db = Database::new(":memory:").unwrap();
     let operation = Operation::new(OperationType::Addition, 20, 30);
 
-    let op_id = db
-        .insert_operation(
-            operation.operation_type.as_str(),
-            operation.operand1,
-            operation.operand2,
-            operation.result,
-            None,
-        )
+    let operation_type = operation.operation_type.as_str();
+    let operand1 = operation.operand1;
+    let operand2 = operation.operand2;
+    let result = operation.result;
+    let repo = OperationsRepository::new(&db.conn);
+    let op_id = repo
+        .insert(operation_type, operand1, operand2, result, None)
         .unwrap();
 
     // Test incorrect answer
@@ -96,10 +97,13 @@ fn test_correct_and_incorrect_answers() {
     let is_correct = operation.check_answer(wrong_answer);
     assert!(!is_correct);
 
-    db.insert_answer(op_id, wrong_answer, is_correct, 3.0, None)
+    let repo1 = AnswersRepository::new(&db.conn);
+    repo1
+        .insert(op_id, wrong_answer, is_correct, 3.0, None)
         .unwrap();
 
-    let answer = db.get_answer(1).unwrap().unwrap();
+    let repo2 = AnswersRepository::new(&db.conn);
+    let answer = repo2.get(1).unwrap().unwrap();
     assert!(!answer.is_correct);
     assert_eq!(answer.user_answer, 60);
 
@@ -108,10 +112,13 @@ fn test_correct_and_incorrect_answers() {
     let is_correct = operation.check_answer(correct_answer);
     assert!(is_correct);
 
-    db.insert_answer(op_id, correct_answer, is_correct, 1.5, None)
+    let repo1 = AnswersRepository::new(&db.conn);
+    repo1
+        .insert(op_id, correct_answer, is_correct, 1.5, None)
         .unwrap();
 
-    let answer2 = db.get_answer(2).unwrap().unwrap();
+    let repo2 = AnswersRepository::new(&db.conn);
+    let answer2 = repo2.get(2).unwrap().unwrap();
     assert!(answer2.is_correct);
     assert_eq!(answer2.user_answer, 50);
 }
@@ -129,27 +136,34 @@ fn test_multiple_operations_with_answers() {
     let times = [1.2, 2.5, 1.8];
 
     for (i, operation) in operations.iter().enumerate() {
-        let op_id = db
-            .insert_operation(
-                operation.operation_type.as_str(),
-                operation.operand1,
-                operation.operand2,
-                operation.result,
-                None,
-            )
+        let operation_type = operation.operation_type.as_str();
+        let operand1 = operation.operand1;
+        let operand2 = operation.operand2;
+        let result = operation.result;
+        let repo = OperationsRepository::new(&db.conn);
+        let op_id = repo
+            .insert(operation_type, operand1, operand2, result, None)
             .unwrap();
 
         let is_correct = operation.check_answer(answers[i]);
-        db.insert_answer(op_id, answers[i], is_correct, times[i], None)
+        let user_answer = answers[i];
+        let time_spent_seconds = times[i];
+        let repo1 = AnswersRepository::new(&db.conn);
+        repo1
+            .insert(op_id, user_answer, is_correct, time_spent_seconds, None)
             .unwrap();
     }
 
-    assert_eq!(db.count_operations().unwrap(), 3);
-    assert_eq!(db.count_answers().unwrap(), 3);
+    let repo = OperationsRepository::new(&db.conn);
+    assert_eq!(repo.count().unwrap(), 3);
+    let repo1 = AnswersRepository::new(&db.conn);
+    assert_eq!(repo1.count().unwrap(), 3);
 
     // Verify all answers are correct
     for i in 1..=3 {
-        let answer = db.get_answer(i as i64).unwrap().unwrap();
+        let answer_id = i as i64;
+        let repo1 = AnswersRepository::new(&db.conn);
+        let answer = repo1.get(answer_id).unwrap().unwrap();
         assert!(answer.is_correct);
     }
 }
@@ -161,28 +175,28 @@ fn test_operation_types_in_database() {
     let add_op = Operation::new(OperationType::Addition, 1, 2);
     let mul_op = Operation::new(OperationType::Multiplication, 3, 4);
 
-    let add_id = db
-        .insert_operation(
-            add_op.operation_type.as_str(),
-            add_op.operand1,
-            add_op.operand2,
-            add_op.result,
-            None,
-        )
+    let operation_type = add_op.operation_type.as_str();
+    let operand1 = add_op.operand1;
+    let operand2 = add_op.operand2;
+    let result = add_op.result;
+    let repo = OperationsRepository::new(&db.conn);
+    let add_id = repo
+        .insert(operation_type, operand1, operand2, result, None)
         .unwrap();
 
-    let mul_id = db
-        .insert_operation(
-            mul_op.operation_type.as_str(),
-            mul_op.operand1,
-            mul_op.operand2,
-            mul_op.result,
-            None,
-        )
+    let operation_type = mul_op.operation_type.as_str();
+    let operand1 = mul_op.operand1;
+    let operand2 = mul_op.operand2;
+    let result = mul_op.result;
+    let repo = OperationsRepository::new(&db.conn);
+    let mul_id = repo
+        .insert(operation_type, operand1, operand2, result, None)
         .unwrap();
 
-    let stored_add = db.get_operation(add_id).unwrap().unwrap();
-    let stored_mul = db.get_operation(mul_id).unwrap().unwrap();
+    let repo1 = OperationsRepository::new(&db.conn);
+    let stored_add = repo1.get(add_id).unwrap().unwrap();
+    let repo1 = OperationsRepository::new(&db.conn);
+    let stored_mul = repo1.get(mul_id).unwrap().unwrap();
 
     assert_eq!(stored_add.operation_type, "ADD");
     assert_eq!(stored_mul.operation_type, "MULTIPLY");

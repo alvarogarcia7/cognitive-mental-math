@@ -151,6 +151,7 @@ impl DatabaseFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::database::OperationsRepository;
 
     // ===== Basic default behavior tests =====
 
@@ -252,7 +253,8 @@ mod tests {
         let config = DatabaseConfig::builder().build();
         let db = DatabaseFactory::create(config).expect("Failed to create in-memory database");
         // Verify the database works by executing a simple query
-        assert!(db.count_operations().is_ok());
+        let repo = OperationsRepository::new(&db.conn);
+        assert!(repo.count().is_ok());
     }
 
     #[test]
@@ -260,7 +262,8 @@ mod tests {
         let config = DatabaseConfig::builder().path(Some(":mem:")).build();
         let db = DatabaseFactory::create(config)
             .expect("Failed to create in-memory database with :mem: alias");
-        assert!(db.count_operations().is_ok());
+        let repo = OperationsRepository::new(&db.conn);
+        assert!(repo.count().is_ok());
     }
 
     #[test]
@@ -268,7 +271,8 @@ mod tests {
         let config = DatabaseConfig::builder().path(Some("memory")).build();
         let db = DatabaseFactory::create(config)
             .expect("Failed to create in-memory database with memory alias");
-        assert!(db.count_operations().is_ok());
+        let repo = OperationsRepository::new(&db.conn);
+        assert!(repo.count().is_ok());
     }
 
     #[test]

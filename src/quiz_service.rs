@@ -1,5 +1,7 @@
 use crate::answer_evaluator_service::AnswerEvaluatorService;
-use crate::database::Database;
+use crate::database::{
+    AnswersRepository, Database, DecksRepository, OperationsRepository, ReviewItemsRepository,
+};
 use crate::deck::DeckSummary;
 use crate::operations::{Operation, OperationType};
 use crate::spaced_repetition::{ReviewItem, ReviewScheduler};
@@ -102,18 +104,25 @@ impl QuizService {
     ) -> QuestionResult {
         let mut updated_result = result.clone();
 
+        let self1 = &self.db;
+        let user_answer = result.user_answer;
+        let is_correct = result.is_correct;
+        let time_spent_seconds = result.time_spent;
+        let deck_id1 = Some(deck_id);
+        let repo = AnswersRepository::new(&self1.conn);
+        let self2 = &self.db;
+        let repo1 = ReviewItemsRepository::new(&self2.conn);
         if let Some(operation_id) = result.original_operation_id
-            && self
-                .db
-                .insert_answer(
+            && repo
+                .insert(
                     operation_id,
-                    result.user_answer,
-                    result.is_correct,
-                    result.time_spent,
-                    Some(deck_id),
+                    user_answer,
+                    is_correct,
+                    time_spent_seconds,
+                    deck_id1,
                 )
                 .is_ok()
-            && let Ok(Some(mut review_item)) = self.db.get_review_item(operation_id)
+            && let Ok(Some(mut review_item)) = repo1.get(operation_id)
         {
             let stats = self
                 .evaluator_service
@@ -140,7 +149,9 @@ impl QuizService {
             review_item.next_review_date = next_date;
             review_item.last_reviewed_date = Some(Utc::now());
 
-            let _ = self.db.update_review_item(&review_item);
+            let self2 = &self.db;
+            let repo1 = ReviewItemsRepository::new(&self2.conn);
+            let _ = repo1.update(&review_item);
 
             // Update the result with grade and next review date
             updated_result.grade = Some(quality);
@@ -161,22 +172,29 @@ impl QuizService {
     ) -> QuestionResult {
         let mut updated_result = result.clone();
 
-        if let Ok(operation_id) = self.db.insert_operation(
-            result.operation.operation_type.as_str(),
-            result.operation.operand1,
-            result.operation.operand2,
-            result.operation.result,
-            Some(deck_id),
-        ) && self
-            .db
-            .insert_answer(
-                operation_id,
-                result.user_answer,
-                result.is_correct,
-                result.time_spent,
-                Some(deck_id),
-            )
-            .is_ok()
+        let self1 = &self.db;
+        let operation_type = result.operation.operation_type.as_str();
+        let operand1 = result.operation.operand1;
+        let operand2 = result.operation.operand2;
+        let result1 = result.operation.result;
+        let deck_id1 = Some(deck_id);
+        let repo = OperationsRepository::new(&self1.conn);
+        let self2 = &self.db;
+        let user_answer = result.user_answer;
+        let is_correct = result.is_correct;
+        let time_spent_seconds = result.time_spent;
+        let deck_id2 = Some(deck_id);
+        let repo1 = AnswersRepository::new(&self2.conn);
+        if let Ok(operation_id) = repo.insert(operation_type, operand1, operand2, result1, deck_id1)
+            && repo1
+                .insert(
+                    operation_id,
+                    user_answer,
+                    is_correct,
+                    time_spent_seconds,
+                    deck_id2,
+                )
+                .is_ok()
         {
             let stats = self
                 .evaluator_service
@@ -214,8 +232,12 @@ impl QuizService {
             review_item.ease_factor = ease;
             review_item.next_review_date = next_date;
 
-            let _ = self.db.insert_review_item(operation_id, next_date);
-            let _ = self.db.update_review_item(&review_item);
+            let self3 = &self.db;
+            let repo2 = ReviewItemsRepository::new(&self3.conn);
+            let _ = repo2.insert(operation_id, next_date);
+            let self4 = &self.db;
+            let repo3 = ReviewItemsRepository::new(&self4.conn);
+            let _ = repo3.update(&review_item);
 
             // Update the result with grade and next review date
             updated_result.grade = Some(quality);
@@ -237,10 +259,15 @@ impl QuizService {
         let summary = DeckSummary::from_results(&results_data);
 
         // Update deck with summary
-        let _ = self.db.update_deck_summary(deck_id, &summary);
+        let self1 = &self.db;
+        let repo = DecksRepository::new(&self1.conn, Box::new(|| self1.get_current_time()));
+        let _ = repo.update_summary(deck_id, &summary);
 
         // Mark deck as completed
-        let _ = self.db.complete_deck(deck_id);
+        let self2 = &self.db;
+        let current_time = self2.get_current_time();
+        let repo1 = DecksRepository::new(&self2.conn, Box::new(move || current_time));
+        let _ = repo1.complete(deck_id);
     }
 
     /// Fetch due review questions for a deck
@@ -248,12 +275,17 @@ impl QuizService {
         let mut questions = Vec::new();
         let now = Utc::now();
 
-        if let Ok(due_reviews) = self.db.get_due_reviews(now) {
+        let self1 = &self.db;
+        let repo = ReviewItemsRepository::new(&self1.conn);
+        if let Ok(due_reviews) = repo.get_due(now) {
             let num_due = due_reviews.len();
             info!("Found {} review question(s) due for practice", num_due);
 
             for (idx, review_item) in due_reviews.iter().enumerate() {
-                if let Ok(Some(op_record)) = self.db.get_operation(review_item.operation_id)
+                let self1 = &self.db;
+                let operation_id = review_item.operation_id;
+                let repo = OperationsRepository::new(&self1.conn);
+                if let Ok(Some(op_record)) = repo.get(operation_id)
                     && let Some(op_type) = OperationType::from_str(&op_record.operation_type)
                 {
                     let mut operation =

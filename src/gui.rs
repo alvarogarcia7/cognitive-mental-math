@@ -1,4 +1,4 @@
-use crate::database::Database;
+use crate::database::{Database, DecksRepository};
 use crate::operations::generate_question_block;
 use crate::quiz_service::{QuestionResult, QuizService};
 use crate::time_format::format_time_difference;
@@ -101,11 +101,16 @@ impl MemoryPracticeApp {
         if let Some(deck_id) = self.current_deck_id
             && self.state != AppState::ShowingResults
         {
-            let _ = self.db.abandon_deck(deck_id);
+            let self1 = &self.db;
+            let repo = DecksRepository::new(&self1.conn, Box::new(|| self1.get_current_time()));
+            let _ = repo.abandon(deck_id);
         }
 
         // Create new deck
-        self.current_deck_id = self.db.create_deck().ok();
+        let self1 = &self.db;
+        let current_time = self1.get_current_time();
+        let repo = DecksRepository::new(&self1.conn, Box::new(move || current_time));
+        self.current_deck_id = repo.create().ok();
 
         // Fetch due reviews using service
         let mut questions = self.service.fetch_due_reviews();
@@ -171,7 +176,9 @@ impl Drop for MemoryPracticeApp {
         {
             // Write any answers that were collected to database before abandoning
             self.write_results_to_database();
-            let _ = self.db.abandon_deck(_deck_id);
+            let self1 = &self.db;
+            let repo = DecksRepository::new(&self1.conn, Box::new(|| self1.get_current_time()));
+            let _ = repo.abandon(_deck_id);
         }
     }
 }
@@ -333,6 +340,7 @@ pub fn run_app(db: Arc<Database>, is_test_mode: bool) -> Result<(), eframe::Erro
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::database::{AnswersRepository, OperationsRepository};
     use crate::deck::DeckStatus;
 
     #[test]
@@ -343,8 +351,9 @@ mod tests {
             app.start_new_block();
             let deck_id = app.get_current_deck_id().expect("Deck should be created");
             // Verify deck was created as in_progress
-            let deck = db
-                .get_deck(deck_id)
+            let repo = DecksRepository::new(&db.conn, Box::new(|| db.get_current_time()));
+            let deck = repo
+                .get(deck_id)
                 .expect("Database access should succeed")
                 .expect("Deck should exist");
             assert_eq!(deck.status, DeckStatus::InProgress);
@@ -352,8 +361,9 @@ mod tests {
         }
 
         // After drop, the deck should be marked as abandoned
-        let deck = db
-            .get_deck(1)
+        let repo = DecksRepository::new(&db.conn, Box::new(|| db.get_current_time()));
+        let deck = repo
+            .get(1)
             .expect("Database access should succeed")
             .expect("Deck should still exist");
         assert_eq!(
@@ -379,8 +389,9 @@ mod tests {
         };
 
         // After drop, the deck should still be completed (not abandoned)
-        let deck = db
-            .get_deck(deck_id)
+        let repo = DecksRepository::new(&db.conn, Box::new(|| db.get_current_time()));
+        let deck = repo
+            .get(deck_id)
             .expect("Database access should succeed")
             .expect("Deck should still exist");
         assert_eq!(
@@ -425,9 +436,8 @@ mod tests {
         assert_eq!(app.results[0].user_answer, 42);
 
         // But NOT in the database yet (deck is incomplete)
-        let operations_in_db = db
-            .count_operations()
-            .expect("Database access should succeed");
+        let repo = OperationsRepository::new(&db.conn);
+        let operations_in_db = repo.count().expect("Database access should succeed");
         assert_eq!(
             operations_in_db, 0,
             "Operations should not be written to database immediately"
@@ -452,17 +462,17 @@ mod tests {
         assert_eq!(app.state, AppState::ShowingResults);
 
         // Now answers should be in the database
-        let operations_in_db = db
-            .count_operations()
-            .expect("Database access should succeed");
+        let repo = OperationsRepository::new(&db.conn);
+        let operations_in_db = repo.count().expect("Database access should succeed");
         assert_eq!(
             operations_in_db, 1,
             "Operations should be written when deck completes"
         );
 
         // Verify the operation and answer are correct
-        let operation = db
-            .get_operation(1)
+        let repo = OperationsRepository::new(&db.conn);
+        let operation = repo
+            .get(1)
             .expect("Database access should succeed")
             .expect("Operation should exist");
         assert!(
@@ -470,8 +480,9 @@ mod tests {
             "Operation type should exist"
         );
 
-        let answer = db
-            .get_answer(1)
+        let repo1 = AnswersRepository::new(&db.conn);
+        let answer = repo1
+            .get(1)
             .expect("Database access should succeed")
             .expect("Answer should exist");
         assert_eq!(answer.user_answer, expected_answer);
@@ -491,25 +502,24 @@ mod tests {
             app.submit_answer();
 
             // Verify not in database yet
-            let operations_count = db
-                .count_operations()
-                .expect("Database access should succeed");
+            let repo = OperationsRepository::new(&db.conn);
+            let operations_count = repo.count().expect("Database access should succeed");
             assert_eq!(operations_count, 0, "Answers not yet written to database");
 
             // app drops here
         }
 
         // After drop, answers should be written and deck abandoned
-        let operations_in_db = db
-            .count_operations()
-            .expect("Database access should succeed");
+        let repo = OperationsRepository::new(&db.conn);
+        let operations_in_db = repo.count().expect("Database access should succeed");
         assert_eq!(
             operations_in_db, 1,
             "Answers should be written when app closes with incomplete deck"
         );
 
-        let deck = db
-            .get_deck(1)
+        let repo1 = DecksRepository::new(&db.conn, Box::new(|| db.get_current_time()));
+        let deck = repo1
+            .get(1)
             .expect("Database access should succeed")
             .expect("Deck should exist");
         assert_eq!(
@@ -532,9 +542,8 @@ mod tests {
         }
 
         // All should be written when deck completes
-        let operations_in_db = db
-            .count_operations()
-            .expect("Database access should succeed");
+        let repo = OperationsRepository::new(&db.conn);
+        let operations_in_db = repo.count().expect("Database access should succeed");
         assert_eq!(
             operations_in_db, 3,
             "All answers should be written together"
@@ -542,8 +551,10 @@ mod tests {
 
         // Verify all answers are in database
         for i in 1..=3 {
-            let answer = db
-                .get_answer(i as i64)
+            let answer_id = i as i64;
+            let repo1 = AnswersRepository::new(&db.conn);
+            let answer = repo1
+                .get(answer_id)
                 .expect("Database access should succeed")
                 .expect(&format!("Answer {} should exist", i));
             assert!(answer.user_answer >= 0);

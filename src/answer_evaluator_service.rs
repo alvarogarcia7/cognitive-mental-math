@@ -1,4 +1,4 @@
-use crate::database::Database;
+use crate::database::{Analytics, Database};
 use crate::spaced_repetition::AnswerTimedEvaluator;
 use std::sync::Arc;
 
@@ -18,8 +18,11 @@ impl AnswerEvaluatorService {
     /// Retrieves historical timing statistics from the database for the operation type.
     /// Falls back to default values (average: 3.0s, stdev: 2.0s) if no historical data exists.
     pub fn get_evaluator(&self, operation_type: &str) -> AnswerTimedEvaluator {
-        self.db
-            .compute_time_statistics(operation_type)
+        let self1 = &self.db;
+        let analytics = Analytics::new(&self1.conn);
+        analytics
+            .time_statistics()
+            .for_operation_type(operation_type)
             .ok()
             .flatten()
             .unwrap_or_else(|| {
@@ -32,7 +35,7 @@ impl AnswerEvaluatorService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::database::Database;
+    use crate::database::{AnswersRepository, Database, OperationsRepository};
 
     #[test]
     fn test_get_evaluator_with_historical_data() {
@@ -40,12 +43,16 @@ mod tests {
         let service = AnswerEvaluatorService::new(db.clone());
 
         // Insert some operations and answers to create historical data
-        let operation_id = db.insert_operation("addition", 5, 3, 8, None).unwrap();
+        let repo = OperationsRepository::new(&db.conn);
+        let operation_id = repo.insert("addition", 5, 3, 8, None).unwrap();
 
         // Insert several answers with known times
-        let _ = db.insert_answer(operation_id, 8, true, 1.0, None);
-        let _ = db.insert_answer(operation_id, 8, true, 1.5, None);
-        let _ = db.insert_answer(operation_id, 8, true, 2.0, None);
+        let repo1 = AnswersRepository::new(&db.conn);
+        let _ = repo1.insert(operation_id, 8, true, 1.0, None);
+        let repo1 = AnswersRepository::new(&db.conn);
+        let _ = repo1.insert(operation_id, 8, true, 1.5, None);
+        let repo1 = AnswersRepository::new(&db.conn);
+        let _ = repo1.insert(operation_id, 8, true, 2.0, None);
 
         let evaluator = service.get_evaluator("addition");
 

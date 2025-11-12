@@ -30,7 +30,8 @@ fn main() {
     };
 
     // Fetch all statistics in 3 database queries (one per time period)
-    let global_stats = match db.compute_time_statistics_all_operations() {
+    let analytics = Analytics::new(&db.conn);
+    let global_stats = match analytics.time_statistics().all_operations() {
         Ok(stats) => stats,
         Err(e) => {
             eprintln!("Error fetching global statistics: {}", e);
@@ -43,7 +44,8 @@ fn main() {
         return;
     }
 
-    let last_30_days_stats = match db.compute_time_statistics_all_operations_last_30_days() {
+    let analytics1 = Analytics::new(&db.conn);
+    let last_30_days_stats = match analytics1.time_statistics().all_operations_last_30_days() {
         Ok(stats) => stats,
         Err(e) => {
             eprintln!("Error fetching last 30 days statistics: {}", e);
@@ -51,7 +53,8 @@ fn main() {
         }
     };
 
-    let last_10_decks_stats = match db.compute_time_statistics_all_operations_last_10_decks() {
+    let analytics2 = Analytics::new(&db.conn);
+    let last_10_decks_stats = match analytics2.time_statistics().all_operations_last_10_decks() {
         Ok(stats) => stats,
         Err(e) => {
             eprintln!("Error fetching last 10 decks statistics: {}", e);
@@ -60,7 +63,8 @@ fn main() {
     };
 
     // Fetch accuracy statistics
-    let global_accuracy_stats = match db.compute_accuracy_all_operations() {
+    let analytics3 = Analytics::new(&db.conn);
+    let global_accuracy_stats = match analytics3.accuracy().all_operations() {
         Ok(stats) => stats,
         Err(e) => {
             eprintln!("Error fetching global accuracy statistics: {}", e);
@@ -68,7 +72,8 @@ fn main() {
         }
     };
 
-    let last_30_days_accuracy_stats = match db.compute_accuracy_all_operations_last_30_days() {
+    let analytics4 = Analytics::new(&db.conn);
+    let last_30_days_accuracy_stats = match analytics4.accuracy().all_operations_last_30_days() {
         Ok(stats) => stats,
         Err(e) => {
             eprintln!("Error fetching last 30 days accuracy statistics: {}", e);
