@@ -322,6 +322,14 @@ mod tests {
 
     // ===== Current date tests =====
 
+    fn parse_date_from_args(args: &[String]) -> NaiveDate {
+        args.iter()
+            .position(|arg| arg == "--override-date")
+            .and_then(|idx| args.get(idx + 1))
+            .and_then(|date_str| NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok())
+            .unwrap_or_else(|| chrono::Local::now().naive_local().date())
+    }
+
     #[test]
     fn test_current_date_parsing_valid() {
         use chrono::NaiveDate;
@@ -330,30 +338,18 @@ mod tests {
             "--override-date".to_string(),
             "2025-11-18".to_string(),
         ];
-        let current_date = args
-            .iter()
-            .position(|arg| arg == "--override-date")
-            .and_then(|idx| args.get(idx + 1))
-            .and_then(|date_str| NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok())
-            .unwrap_or_else(|| chrono::Local::now().naive_local().date());
-
+        let current_date = parse_date_from_args(&args);
         assert_eq!(current_date, NaiveDate::from_ymd_opt(2025, 11, 18).unwrap());
     }
 
     #[test]
     fn test_current_date_invalid_format_uses_today() {
-        use chrono::NaiveDate;
         let args = vec![
             "app".to_string(),
             "--override-date".to_string(),
             "2025/11/18".to_string(),
         ];
-        let current_date = args
-            .iter()
-            .position(|arg| arg == "--override-date")
-            .and_then(|idx| args.get(idx + 1))
-            .and_then(|date_str| NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok())
-            .unwrap_or_else(|| chrono::Local::now().naive_local().date());
+        let current_date = parse_date_from_args(&args);
 
         // Should fallback to today's date
         let today = chrono::Local::now().naive_local().date();
