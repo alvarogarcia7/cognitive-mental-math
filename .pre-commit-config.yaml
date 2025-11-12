@@ -28,8 +28,8 @@ repos:
 
 #### PRE-PUSH HOOKS ####
 
-      - id: make-fmt-push
-        name: Format code
+      - id: make-fmt-check-push
+        name: Check Format code (push)
         entry: make fmt-check
         language: system
         stages: [ pre-push ]
@@ -37,7 +37,7 @@ repos:
         always_run: true
 
       - id: make-clippy-push
-        name: Clippy (push)
+        name: Check Clippy (push)
         entry: make clippy
         language: system
         stages: [ pre-push ]
