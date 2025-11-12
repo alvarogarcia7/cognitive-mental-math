@@ -179,20 +179,24 @@ fn test_operation_types_in_database() {
 
     let operations_repo = OperationsRepository::new(&db.conn);
 
-    let operation_type = add_op.operation_type.as_str();
-    let operand1 = add_op.operand1;
-    let operand2 = add_op.operand2;
-    let result = add_op.result;
     let add_id = operations_repo
-        .insert(operation_type, operand1, operand2, result, None)
+        .insert(
+            add_op.operation_type.as_str(),
+            add_op.operand1,
+            add_op.operand2,
+            add_op.result,
+            None,
+        )
         .unwrap();
 
-    let operation_type = mul_op.operation_type.as_str();
-    let operand1 = mul_op.operand1;
-    let operand2 = mul_op.operand2;
-    let result = mul_op.result;
     let mul_id = operations_repo
-        .insert(operation_type, operand1, operand2, result, None)
+        .insert(
+            mul_op.operation_type.as_str(),
+            mul_op.operand1,
+            mul_op.operand2,
+            mul_op.result,
+            None,
+        )
         .unwrap();
 
     let stored_add = operations_repo.get(add_id).unwrap().unwrap();
