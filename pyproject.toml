@@ -1,0 +1,10 @@
+[project]
+name = "cognitive-mental-math"
+version = "0.1.0"
+description = "Pre-commit configuration for cognitive-mental-math project"
+requires-python = ">=3.10"
+
+[tool.uv]
+dev-dependencies = [
+    "pre-commit>=3.0.0",
+]
