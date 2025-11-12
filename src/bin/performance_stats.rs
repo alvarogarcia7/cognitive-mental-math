@@ -105,19 +105,23 @@ fn main() {
     // Get days with and without answers in the last 10 days
     let now = Utc::now();
     let days_with_answers = db.get_days_with_answers(now).unwrap_or_default();
-    let missing_days = db
-        .get_missing_days_in_streak(10, now)
-        .unwrap_or_default();
+    let missing_days = db.get_missing_days_in_streak(10, now).unwrap_or_default();
 
     println!("Performance Analysis Report");
     println!("===========================");
     println!();
     println!("Consecutive Days Streak: {} days", consecutive_days_streak);
     if !days_with_answers.is_empty() {
-        println!("Days with answers (last 10 days): {}", days_with_answers.join(", "));
+        println!(
+            "Days with answers (last 10 days): {}",
+            days_with_answers.join(", ")
+        );
     }
     if !missing_days.is_empty() {
-        println!("Days without answers (last 10 days): {}", missing_days.join(", "));
+        println!(
+            "Days without answers (last 10 days): {}",
+            missing_days.join(", ")
+        );
     }
     println!();
 
