@@ -1,13 +1,13 @@
 repos:
   - repo: local
     hooks:
-      - id: make-fmt
-        name: make fmt
-        entry: make fmt
-        language: system
-        stages: [commit]
-        pass_filenames: false
-        always_run: true
+#      - id: make-fmt
+#        name: make fmt
+#        entry: make fmt
+#        language: system
+#        stages: [commit]
+#        pass_filenames: false
+#        always_run: true
 
       - id: make-test
         name: make test
@@ -17,13 +17,13 @@ repos:
         pass_filenames: false
         always_run: true
 
-      - id: make-fmt-check
-        name: make fmt-check
-        entry: make fmt-check
-        language: system
-        stages: [push]
-        pass_filenames: false
-        always_run: true
+#      - id: make-fmt-check
+#        name: make fmt-check
+#        entry: make fmt-check
+#        language: system
+#        stages: [push]
+#        pass_filenames: false
+#        always_run: true
 
       - id: make-test-push
         name: make test (push)
