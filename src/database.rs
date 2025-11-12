@@ -643,6 +643,31 @@ impl Database {
         Ok(streak)
     }
 
+    /// Get days with answers in the last 10 days
+    /// Returns a vector of dates that had any answers (correct or not)
+    /// Example: if in the last 10 days answers exist on [2025-01-10, 2025-01-08, 2025-01-05]
+    /// returns [2025-01-10, 2025-01-08, 2025-01-05] (sorted descending)
+    pub fn get_days_with_answers(&self, now: DateTime<Utc>) -> Result<Vec<String>> {
+        let today = now.date_naive();
+        let ten_days_ago = today - chrono::Duration::days(9); // 10 days including today
+
+        // Get all unique dates with answers in the last 10 days
+        let mut stmt = self.conn.prepare(
+            r#"SELECT DISTINCT DATE(a.created_at) as answer_date
+            FROM answers a
+            WHERE DATE(a.created_at) >= ?1 AND DATE(a.created_at) <= ?2
+            ORDER BY answer_date DESC"#,
+        )?;
+
+        let dates_with_answers: Vec<String> = stmt
+            .query_map([ten_days_ago.to_string(), today.to_string()], |row| {
+                row.get(0)
+            })?
+            .collect::<Result<Vec<String>, _>>()?;
+
+        Ok(dates_with_answers)
+    }
+
     /// Get missing days in the last 10 days
     /// Returns a vector of dates that did not have any answers (correct or not)
     /// Ignores the max_days parameter for backward compatibility but always checks last 10 days
@@ -1625,6 +1650,27 @@ mod tests {
         // We'll just verify it doesn't error
         let streak = db.calculate_consecutive_days_streak().unwrap();
         assert!(streak >= 0); // Just verify no error and non-negative
+    }
+
+    #[test]
+    fn test_get_days_with_answers_empty() {
+        let db = create_test_db();
+        // No answers in the database
+        let days_with_answers = db.get_days_with_answers(Utc::now()).unwrap();
+        assert_eq!(days_with_answers.len(), 0);
+    }
+
+    #[test]
+    fn test_get_days_with_answers_with_recent_answer() {
+        let db = create_test_db();
+        let deck_id = db.create_deck().unwrap();
+        let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
+        db.insert_answer(op_id, 5, true, 1.0, Some(deck_id))
+            .unwrap();
+
+        // With one recent answer today, there should be 1 day with answers
+        let days_with_answers = db.get_days_with_answers(Utc::now()).unwrap();
+        assert_eq!(days_with_answers.len(), 1);
     }
 
     #[test]
