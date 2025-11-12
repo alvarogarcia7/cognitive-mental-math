@@ -36,7 +36,7 @@ build_and_test: build test ## Build and run tests
 	@echo "✅ Build and tests passed!"
 .PHONY: build_and_test
 
-pre-commit: fmt build_and_test  clippy ## Run pre-commit checks
+pre-commit: build_and_test  clippy ## Run pre-commit checks
 	@echo "✅ Pre-commit checks passed!"
 .PHONY: pre-commit
 
@@ -66,11 +66,6 @@ check: fmt-check clippy test ## Run all checks
 	@echo "✅ All checks passed!"
 .PHONY: check
 
-install-hooks: ## Install git hooks (legacy method)
-	@echo "Installing git hooks..."
-	@./install-hooks.sh
-.PHONY: install-hooks
-
 install-pre-commit: ## Install pre-commit hooks using pre-commit framework
 	@echo "Installing pre-commit framework and hooks..."
 	@uv sync
@@ -78,8 +73,8 @@ install-pre-commit: ## Install pre-commit hooks using pre-commit framework
 	@echo "✅ Pre-commit hooks installed successfully!"
 .PHONY: install-pre-commit
 
-setup: install-pre-commit ## Setup development environment with pre-commit
-.PHONY: setup
+init: install-pre-commit ## Setup development environment with pre-commit
+.PHONY: init
 
 demo-scheduler: build ## Run the demo scheduler
 	# repetitions, interval, ease factor
