@@ -643,67 +643,49 @@ impl Database {
         Ok(streak)
     }
 
-    /// Get missing days in the consecutive days streak
-    /// Returns a vector of dates that are missing in the streak (up to max_days)
-    /// Example: if streak should be [2025-01-10, 2025-01-09, 2025-01-08, 2025-01-07]
-    /// but 2025-01-09 is missing, returns vec!["2025-01-09"]
-    pub fn get_missing_days_in_streak(&self, max_days: i32) -> Result<Vec<String>> {
-        // Get all unique dates when answers were completed, ordered by date descending
+    /// Get missing days in the last 10 days
+    /// Returns a vector of dates that did not have any answers (correct or not)
+    /// Ignores the max_days parameter for backward compatibility but always checks last 10 days
+    /// Example: if in the last 10 days answers exist on [2025-01-10, 2025-01-08, 2025-01-05]
+    /// returns [2025-01-09, 2025-01-07, 2025-01-06, 2025-01-04, 2025-01-03, 2025-01-02, 2025-01-01]
+    pub fn get_missing_days_in_streak(
+        &self,
+        _max_days: i32,
+        now: DateTime<Utc>,
+    ) -> Result<Vec<String>> {
+        // Always check the last 10 days
+        let today = now.date_naive();
+        let ten_days_ago = today - chrono::Duration::days(9); // 10 days including today
+
+        // Generate all dates in the last 10 days
+        let mut all_dates = Vec::new();
+        let mut current = today;
+        while current >= ten_days_ago {
+            all_dates.push(current.format("%Y-%m-%d").to_string());
+            current -= chrono::Duration::days(1);
+        }
+
+        // Get all unique dates with answers in the last 10 days
         let mut stmt = self.conn.prepare(
             r#"SELECT DISTINCT DATE(a.created_at) as answer_date
             FROM answers a
-            ORDER BY answer_date DESC
-            LIMIT ?"#,
+            WHERE DATE(a.created_at) >= ?1 AND DATE(a.created_at) <= ?2
+            ORDER BY answer_date DESC"#,
         )?;
 
-        let dates: Vec<String> = stmt
-            .query_map([max_days as i32], |row| row.get(0))?
+        let dates_with_answers: Vec<String> = stmt
+            .query_map([ten_days_ago.to_string(), today.to_string()], |row| {
+                row.get(0)
+            })?
             .collect::<Result<Vec<String>, _>>()?;
 
-        if dates.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        let mut missing_days = Vec::new();
-
-        // Get today's date and yesterday's date to handle cases where last activity wasn't today
-        let today = Utc::now().format("%Y-%m-%d").to_string();
-        let yesterday = (Utc::now() - chrono::Duration::days(1))
-            .format("%Y-%m-%d")
-            .to_string();
-
-        // Start from most recent date
-        let mut expected_date = if dates[0] == today {
-            today.clone()
-        } else if dates[0] == yesterday {
-            yesterday.clone()
-        } else {
-            // If most recent activity is more than 1 day old, streak is broken
-            return Ok(Vec::new());
-        };
-
-        let mut current_date_idx = 0;
-
-        // Track expected days and find missing ones
-        for _ in 0..max_days {
-            if current_date_idx < dates.len() && dates[current_date_idx] == expected_date {
-                current_date_idx += 1;
-            } else {
-                // This day is missing from the activity log
-                missing_days.push(expected_date.clone());
-            }
-
-            // Move to previous day
-            if let Ok(date) = chrono::NaiveDate::parse_from_str(&expected_date, "%Y-%m-%d") {
-                if let Some(prev_date) = date.pred_opt() {
-                    expected_date = prev_date.format("%Y-%m-%d").to_string();
-                } else {
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
+        // Find dates without answers
+        let dates_with_answers_set: std::collections::HashSet<_> =
+            dates_with_answers.into_iter().collect();
+        let missing_days: Vec<String> = all_dates
+            .into_iter()
+            .filter(|date| !dates_with_answers_set.contains(date))
+            .collect();
 
         Ok(missing_days)
     }
@@ -732,6 +714,7 @@ mod tests {
     use super::*;
 
     fn create_test_db() -> Database {
+        // Use an in-memory database for each test
         Database::new(":memory:").expect("Failed to create test database")
     }
 
@@ -1648,8 +1631,10 @@ mod tests {
     fn test_get_missing_days_in_streak_empty() {
         let db = create_test_db();
         // No answers in the database
-        let missing_days = db.get_missing_days_in_streak(10).unwrap();
-        assert_eq!(missing_days.len(), 0);
+        let missing_days = db.get_missing_days_in_streak(10, Utc::now()).unwrap();
+        // All days in the last 10 days should be missing since there are no answers
+        // (exactly 10 days: today + 9 days back)
+        assert_eq!(missing_days.len(), 10);
     }
 
     #[test]
@@ -1660,28 +1645,30 @@ mod tests {
         db.insert_answer(op_id, 5, true, 1.0, Some(deck_id))
             .unwrap();
 
-        // With recent answers, get_missing_days_in_streak should work without error
-        // The exact result depends on the current date/time
-        let missing_days = db.get_missing_days_in_streak(10).unwrap();
-        // We can't assert exact content due to time-dependent behavior
-        // but we can verify it returns a vector (possibly empty or with days)
-        assert!(missing_days.is_empty() || !missing_days.is_empty());
+        // With one recent answer today, there should be 9 missing days in the last 10
+        let missing_days = db.get_missing_days_in_streak(10, Utc::now()).unwrap();
+        // Should have 9 missing days (1 day has answer, 9 other days don't)
+        assert_eq!(missing_days.len(), 9);
     }
 
     #[test]
-    fn test_get_missing_days_in_streak_max_days_parameter() {
+    fn test_get_missing_days_in_streak_ignores_max_days_parameter() {
         let db = create_test_db();
         let deck_id = db.create_deck().unwrap();
         let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
         db.insert_answer(op_id, 5, true, 1.0, Some(deck_id))
             .unwrap();
 
-        // Test with different max_days values
-        let missing_5 = db.get_missing_days_in_streak(5).unwrap();
-        let missing_10 = db.get_missing_days_in_streak(10).unwrap();
+        // Test with different max_days values - should always return 10 days worth of data
+        let now = Utc::now();
+        let missing_5 = db.get_missing_days_in_streak(5, now).unwrap();
+        let missing_10 = db.get_missing_days_in_streak(10, now).unwrap();
+        let missing_20 = db.get_missing_days_in_streak(20, now).unwrap();
 
-        // Missing days should be at most max_days
-        assert!(missing_5.len() <= 5);
-        assert!(missing_10.len() <= 10);
+        // All should return 10 days of data (today + 9 days back) minus days with answers
+        // Since we have 1 answer today, each should have 9 missing days
+        assert_eq!(missing_5.len(), 9);
+        assert_eq!(missing_10.len(), 9);
+        assert_eq!(missing_20.len(), 9);
     }
 }

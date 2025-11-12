@@ -1,3 +1,4 @@
+use chrono::Utc;
 use memory_practice::database::Database;
 use memory_practice::spaced_repetition::AnswerTimedEvaluator;
 use std::env;
@@ -102,7 +103,9 @@ fn main() {
     let consecutive_days_streak = db.calculate_consecutive_days_streak().unwrap_or(0);
 
     // Get missing days in the streak (up to 10 days)
-    let missing_days = db.get_missing_days_in_streak(10).unwrap_or_default();
+    let missing_days = db
+        .get_missing_days_in_streak(10, Utc::now())
+        .unwrap_or_default();
 
     println!("Performance Analysis Report");
     println!("===========================");
