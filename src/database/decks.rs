@@ -121,14 +121,10 @@ mod tests {
         init_connection(":memory:").expect("Failed to create test database")
     }
 
-    fn create_repo(conn: &Connection) -> DecksRepository {
-        DecksRepository::new(conn, Box::new(|| Utc::now()))
-    }
-
     #[test]
     fn test_create_deck() {
         let conn = create_test_db();
-        let repo = create_repo(&conn);
+        let repo = DecksRepository::new(&conn, Box::new(|| Utc::now()));
         let deck_id = repo.create().unwrap();
         assert_eq!(deck_id, 1);
         assert_eq!(repo.count().unwrap(), 1);
@@ -137,19 +133,19 @@ mod tests {
     #[test]
     fn test_get_deck() {
         let conn = create_test_db();
-        let repo = create_repo(&conn);
+        let repo = DecksRepository::new(&conn, Box::new(|| Utc::now()));
         let deck_id = repo.create().unwrap();
 
         let deck = repo.get(deck_id).unwrap().unwrap();
         assert_eq!(deck.id, deck_id);
-        assert_eq!(deck.status, crate::deck::DeckStatus::InProgress);
+        assert_eq!(deck.status, DeckStatus::InProgress);
         assert_eq!(deck.total_questions, 0);
     }
 
     #[test]
     fn test_complete_deck() {
         let conn = create_test_db();
-        let repo = create_repo(&conn);
+        let repo = DecksRepository::new(&conn, Box::new(|| Utc::now()));
         let deck_id = repo.create().unwrap();
 
         repo.complete(deck_id).unwrap();
@@ -162,7 +158,7 @@ mod tests {
     #[test]
     fn test_abandon_deck() {
         let conn = create_test_db();
-        let repo = create_repo(&conn);
+        let repo = DecksRepository::new(&conn, Box::new(|| Utc::now()));
         let deck_id = repo.create().unwrap();
 
         repo.abandon(deck_id).unwrap();
@@ -174,7 +170,7 @@ mod tests {
     #[test]
     fn test_update_deck_summary() {
         let conn = create_test_db();
-        let repo = create_repo(&conn);
+        let repo = DecksRepository::new(&conn, Box::new(|| Utc::now()));
         let deck_id = repo.create().unwrap();
 
         let summary = crate::deck::DeckSummary {
@@ -200,7 +196,7 @@ mod tests {
     #[test]
     fn test_get_recent_decks() {
         let conn = create_test_db();
-        let repo = create_repo(&conn);
+        let repo = DecksRepository::new(&conn, Box::new(|| Utc::now()));
         let _deck1 = repo.create().unwrap();
         let _deck2 = repo.create().unwrap();
         let _deck3 = repo.create().unwrap();
