@@ -8,7 +8,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Examples: RUST_LOG=debug, RUST_LOG=info, RUST_LOG=memory_practice=debug
     env_logger::builder().format_timestamp_millis().init();
 
-    // Detect database configuration from command line arguments
+    // Detect database configuration from command line arguments using clap
+    // Supported arguments: --test, --db-path <PATH>, --override-date <YYYY-MM-DD>
+    // Use --help for more information
     let config = DatabaseFactory::detect_config();
     let is_test_mode = config.is_test_mode;
 
