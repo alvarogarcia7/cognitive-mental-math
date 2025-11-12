@@ -29,12 +29,14 @@ fn test_answer_submission_flow() {
     assert_eq!(app.get_current_question_index(), 1);
     assert_eq!(app.get_results().len(), 1);
 
-    let repo = OperationsRepository::new(&db.conn);
-    assert_eq!(repo.count().unwrap(), 1);
-    let repo1 = AnswersRepository::new(&db.conn);
-    assert_eq!(repo1.count().unwrap(), 1);
-    let repo2 = DecksRepository::new(&db.conn, Box::new(|| db.get_current_time()));
-    assert_eq!(repo2.count().unwrap(), 1);
+    assert_eq!(OperationsRepository::new(&db.conn).count().unwrap(), 1);
+    assert_eq!(AnswersRepository::new(&db.conn).count().unwrap(), 1);
+    assert_eq!(
+        DecksRepository::new(&db.conn, Box::new(|| db.get_current_time()))
+            .count()
+            .unwrap(),
+        1
+    );
 }
 
 #[test]
@@ -54,10 +56,8 @@ fn test_complete_question_block() {
     assert_eq!(app.get_results().len(), 10);
 
     // Database should have all operations and answers
-    let repo = OperationsRepository::new(&db.conn);
-    assert_eq!(repo.count().unwrap(), 10);
-    let repo1 = AnswersRepository::new(&db.conn);
-    assert_eq!(repo1.count().unwrap(), 10);
+    assert_eq!(OperationsRepository::new(&db.conn).count().unwrap(), 10);
+    assert_eq!(AnswersRepository::new(&db.conn).count().unwrap(), 10);
 }
 
 #[test]
@@ -72,8 +72,7 @@ fn test_empty_answer_not_submitted() {
     // Should still be on first question
     assert_eq!(app.get_current_question_index(), 0);
     assert_eq!(app.get_results().len(), 0);
-    let repo = AnswersRepository::new(&db.conn);
-    assert_eq!(repo.count().unwrap(), 0);
+    assert_eq!(AnswersRepository::new(&db.conn).count().unwrap(), 0);
 }
 
 #[test]
@@ -124,10 +123,8 @@ fn test_multiple_answers_in_sequence() {
     }
 
     assert_eq!(app.get_results().len(), 5);
-    let repo = OperationsRepository::new(&db.conn);
-    assert_eq!(repo.count().unwrap(), 5);
-    let repo1 = AnswersRepository::new(&db.conn);
-    assert_eq!(repo1.count().unwrap(), 5);
+    assert_eq!(OperationsRepository::new(&db.conn).count().unwrap(), 5);
+    assert_eq!(AnswersRepository::new(&db.conn).count().unwrap(), 5);
 }
 
 #[test]
@@ -182,15 +179,12 @@ fn test_database_persistence_across_submissions() {
     }
 
     // Verify database contains all data
-    let repo = OperationsRepository::new(&db.conn);
-    assert_eq!(repo.count().unwrap(), 3);
-    let repo1 = AnswersRepository::new(&db.conn);
-    assert_eq!(repo1.count().unwrap(), 3);
+    assert_eq!(OperationsRepository::new(&db.conn).count().unwrap(), 3);
+    assert_eq!(AnswersRepository::new(&db.conn).count().unwrap(), 3);
 
     // Verify each answer is stored correctly
     for answer_id in 1..=3 {
-        let repo1 = AnswersRepository::new(&db.conn);
-        let answer = repo1.get(answer_id).unwrap();
+        let answer = AnswersRepository::new(&db.conn).get(answer_id).unwrap();
         assert!(answer.is_some());
     }
 }
@@ -204,8 +198,7 @@ fn test_timing_data_recorded() {
     app.set_answer(0, "50".to_string());
     app.submit_answer();
 
-    let repo = AnswersRepository::new(&db.conn);
-    let answer = repo.get(1).unwrap().unwrap();
+    let answer = AnswersRepository::new(&db.conn).get(1).unwrap().unwrap();
     // Time should be a positive number (even if very small)
     assert!(answer.time_spent_seconds >= 0.0);
 }
