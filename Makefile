@@ -27,6 +27,16 @@ run-dev: build ## Run the application in test mode
 	RUST_LOG=debug cargo run --bin memory_practice -- --test --db-path custom.db
 .PHONY: run-dev
 
+run-with-date: build ## Run the application with override date (use: make run-with-date DATE=2025-11-18)
+	@if [ -z "$(DATE)" ]; then echo "Error: DATE parameter required (format: YYYY-MM-DD). Usage: make run-with-date DATE=2025-11-18"; exit 1; fi
+	RUST_LOG=info cargo run --bin memory_practice -- --override-date $(DATE)
+.PHONY: run-with-date
+
+run-dev-with-date: build ## Run in test mode with override date (use: make run-dev-with-date DATE=2025-11-18)
+	@if [ -z "$(DATE)" ]; then echo "Error: DATE parameter required (format: YYYY-MM-DD). Usage: make run-dev-with-date DATE=2025-11-18"; exit 1; fi
+	RUST_LOG=debug cargo run --bin memory_practice -- --test --db-path custom.db --override-date $(DATE)
+.PHONY: run-dev-with-date
+
 clean: ## Clean build artifacts
 	@echo "Cleaning build artifacts..."
 	@cargo clean
