@@ -111,7 +111,8 @@ impl MemoryPracticeApp {
         let mut questions = self.service.fetch_due_reviews();
 
         // Generate new questions to fill the block
-        let mut new_questions = generate_question_block(self.questions_per_block.saturating_sub(questions.len()));
+        let mut new_questions =
+            generate_question_block(self.questions_per_block.saturating_sub(questions.len()));
         questions.append(&mut new_questions);
 
         // If we have fewer questions than requested, generate more
