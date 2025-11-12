@@ -1,4 +1,5 @@
-use crate::database::{Analytics, Database};
+use crate::database::Database;
+use crate::database::analytics::TimeStatisticsRepository;
 use crate::spaced_repetition::AnswerTimedEvaluator;
 use std::sync::Arc;
 
@@ -18,10 +19,7 @@ impl AnswerEvaluatorService {
     /// Retrieves historical timing statistics from the database for the operation type.
     /// Falls back to default values (average: 3.0s, stdev: 2.0s) if no historical data exists.
     pub fn get_evaluator(&self, operation_type: &str) -> AnswerTimedEvaluator {
-        let self1 = &self.db;
-        let analytics = Analytics::new(&self1.conn);
-        analytics
-            .time_statistics()
+        TimeStatisticsRepository::new(&self.db.conn)
             .for_operation_type(operation_type)
             .ok()
             .flatten()
@@ -43,16 +41,14 @@ mod tests {
         let service = AnswerEvaluatorService::new(db.clone());
 
         // Insert some operations and answers to create historical data
-        let repo = OperationsRepository::new(&db.conn);
-        let operation_id = repo.insert("addition", 5, 3, 8, None).unwrap();
+        let repo_operations = OperationsRepository::new(&db.conn);
+        let operation_id = repo_operations.insert("addition", 5, 3, 8, None).unwrap();
 
         // Insert several answers with known times
-        let repo1 = AnswersRepository::new(&db.conn);
-        let _ = repo1.insert(operation_id, 8, true, 1.0, None);
-        let repo1 = AnswersRepository::new(&db.conn);
-        let _ = repo1.insert(operation_id, 8, true, 1.5, None);
-        let repo1 = AnswersRepository::new(&db.conn);
-        let _ = repo1.insert(operation_id, 8, true, 2.0, None);
+        let repo_answers = AnswersRepository::new(&db.conn);
+        let _ = repo_answers.insert(operation_id, 8, true, 1.0, None);
+        let _ = repo_answers.insert(operation_id, 8, true, 1.5, None);
+        let _ = repo_answers.insert(operation_id, 8, true, 2.0, None);
 
         let evaluator = service.get_evaluator("addition");
 

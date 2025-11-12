@@ -48,6 +48,7 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::database::analytics::StreakRepository;
     use crate::database_factory::{DatabaseConfig, DatabaseFactory};
 
     fn create_test_db() -> Database {
@@ -163,7 +164,9 @@ mod tests {
 
         let now = Utc::now();
         let analytics = Analytics::new(&db.conn);
-        let days_with_answers = analytics.streak().get_days_with_answers(now).unwrap();
+        let days_with_answers = StreakRepository::new(analytics.conn)
+            .get_days_with_answers(now)
+            .unwrap();
         assert_eq!(days_with_answers, vec!["2025-11-12"]);
     }
 }

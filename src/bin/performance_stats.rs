@@ -1,5 +1,8 @@
 use chrono::Utc;
 use clap::Parser;
+use memory_practice::database::analytics::{
+    AccuracyRepository, StreakRepository, TimeStatisticsRepository,
+};
 use memory_practice::database::{Analytics, Database};
 use memory_practice::spaced_repetition::AnswerTimedEvaluator;
 use std::path::PathBuf;
@@ -31,7 +34,7 @@ fn main() {
 
     // Fetch all statistics in 3 database queries (one per time period)
     let analytics = Analytics::new(&db.conn);
-    let global_stats = match analytics.time_statistics().all_operations() {
+    let global_stats = match TimeStatisticsRepository::new(analytics.conn).all_operations() {
         Ok(stats) => stats,
         Err(e) => {
             eprintln!("Error fetching global statistics: {}", e);
@@ -44,24 +47,26 @@ fn main() {
         return;
     }
 
-    let last_30_days_stats = match analytics.time_statistics().all_operations_last_30_days() {
-        Ok(stats) => stats,
-        Err(e) => {
-            eprintln!("Error fetching last 30 days statistics: {}", e);
-            std::process::exit(1);
-        }
-    };
+    let last_30_days_stats =
+        match TimeStatisticsRepository::new(analytics.conn).all_operations_last_30_days() {
+            Ok(stats) => stats,
+            Err(e) => {
+                eprintln!("Error fetching last 30 days statistics: {}", e);
+                std::process::exit(1);
+            }
+        };
 
-    let last_10_decks_stats = match analytics.time_statistics().all_operations_last_10_decks() {
-        Ok(stats) => stats,
-        Err(e) => {
-            eprintln!("Error fetching last 10 decks statistics: {}", e);
-            std::process::exit(1);
-        }
-    };
+    let last_10_decks_stats =
+        match TimeStatisticsRepository::new(analytics.conn).all_operations_last_10_decks() {
+            Ok(stats) => stats,
+            Err(e) => {
+                eprintln!("Error fetching last 10 decks statistics: {}", e);
+                std::process::exit(1);
+            }
+        };
 
     // Fetch accuracy statistics
-    let global_accuracy_stats = match analytics.accuracy().all_operations() {
+    let global_accuracy_stats = match AccuracyRepository::new(analytics.conn).all_operations() {
         Ok(stats) => stats,
         Err(e) => {
             eprintln!("Error fetching global accuracy statistics: {}", e);
@@ -69,16 +74,17 @@ fn main() {
         }
     };
 
-    let last_30_days_accuracy_stats = match analytics.accuracy().all_operations_last_30_days() {
-        Ok(stats) => stats,
-        Err(e) => {
-            eprintln!("Error fetching last 30 days accuracy statistics: {}", e);
-            std::process::exit(1);
-        }
-    };
+    let last_30_days_accuracy_stats =
+        match AccuracyRepository::new(analytics.conn).all_operations_last_30_days() {
+            Ok(stats) => stats,
+            Err(e) => {
+                eprintln!("Error fetching last 30 days accuracy statistics: {}", e);
+                std::process::exit(1);
+            }
+        };
 
     let analytics = Analytics::new(&db.conn);
-    let result = analytics.accuracy().all_operations_last_10_decks();
+    let result = AccuracyRepository::new(analytics.conn).all_operations_last_10_decks();
     let last_10_decks_accuracy_stats = match result {
         Ok(stats) => stats,
         Err(e) => {
@@ -88,7 +94,7 @@ fn main() {
     };
 
     // Fetch total accuracy
-    let total_accuracy = match analytics.accuracy().total_accuracy() {
+    let total_accuracy = match AccuracyRepository::new(analytics.conn).total_accuracy() {
         Ok(stats) => stats,
         Err(e) => {
             eprintln!("Error fetching total accuracy: {}", e);
@@ -96,26 +102,24 @@ fn main() {
         }
     };
 
-    let total_accuracy_last_30_days = analytics
-        .accuracy()
+    let total_accuracy_last_30_days = AccuracyRepository::new(analytics.conn)
         .total_accuracy_last_30_days()
         .unwrap_or((0, 0, 0.0));
-    let total_accuracy_last_10_decks = analytics
-        .accuracy()
+    let total_accuracy_last_10_decks = AccuracyRepository::new(analytics.conn)
         .total_accuracy_last_10_decks()
         .unwrap_or((0, 0, 0.0));
 
     // Calculate consecutive days streak
-    let consecutive_days_streak = analytics.streak().calculate_consecutive_days().unwrap_or(0);
+    let consecutive_days_streak = StreakRepository::new(analytics.conn)
+        .calculate_consecutive_days()
+        .unwrap_or(0);
 
     // Get days with and without answers in the last 10 days
     let now = Utc::now();
-    let days_with_answers = analytics
-        .streak()
+    let days_with_answers = StreakRepository::new(analytics.conn)
         .get_days_with_answers(now)
         .unwrap_or_default();
-    let missing_days = analytics
-        .streak()
+    let missing_days = StreakRepository::new(analytics.conn)
         .get_missing_days(10, now)
         .unwrap_or_default();
 
