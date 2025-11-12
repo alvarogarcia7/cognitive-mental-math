@@ -158,8 +158,7 @@ fn test_multiple_operations_with_answers() {
             .unwrap();
     }
 
-    let operations_getter = OperationsRepository::new(&db.conn);
-    assert_eq!(operations_getter.count().unwrap(), 3);
+    assert_eq!(operations_repo.count().unwrap(), 3);
     assert_eq!(answers_repo.count().unwrap(), 3);
 
     // Verify all answers are correct
