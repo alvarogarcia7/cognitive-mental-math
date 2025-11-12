@@ -15,7 +15,65 @@ pub struct DatabaseConfig {
     pub current_date: NaiveDate,
 }
 
+impl Default for DatabaseConfig {
+    fn default() -> Self {
+        Self::for_production()
+    }
+}
+
 impl DatabaseConfig {
+    /// Default test date used in tests
+    const DEFAULT_TEST_DATE: (i32, u32, u32) = (2025, 11, 12);
+
+    /// Create a new DatabaseConfig with explicit parameters
+    pub fn new(
+        is_test_mode: bool,
+        custom_path: Option<String>,
+        current_date: NaiveDate,
+    ) -> Self {
+        DatabaseConfig {
+            is_test_mode,
+            custom_path,
+            current_date,
+        }
+    }
+
+    /// Create a test mode config with a default test date
+    pub fn for_test() -> Self {
+        Self::new(
+            true,
+            None,
+            NaiveDate::from_ymd_opt(Self::DEFAULT_TEST_DATE.0, Self::DEFAULT_TEST_DATE.1, Self::DEFAULT_TEST_DATE.2).unwrap(),
+        )
+    }
+
+    /// Create a production mode config with a default test date
+    pub fn for_production() -> Self {
+        Self::new(
+            false,
+            None,
+            NaiveDate::from_ymd_opt(Self::DEFAULT_TEST_DATE.0, Self::DEFAULT_TEST_DATE.1, Self::DEFAULT_TEST_DATE.2).unwrap(),
+        )
+    }
+
+    /// Set the custom path
+    pub fn with_path(mut self, path: Option<&str>) -> Self {
+        self.custom_path = path.map(|p| p.to_string());
+        self
+    }
+
+    /// Set the test mode
+    pub fn with_test_mode(mut self, is_test: bool) -> Self {
+        self.is_test_mode = is_test;
+        self
+    }
+
+    /// Set the date
+    pub fn with_date(mut self, date: NaiveDate) -> Self {
+        self.current_date = date;
+        self
+    }
+
     /// Gets the effective database path
     ///
     /// Priority:
@@ -94,21 +152,13 @@ mod tests {
 
     #[test]
     fn test_default_path_production_mode() {
-        let config = DatabaseConfig {
-            is_test_mode: false,
-            custom_path: None,
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_production();
         assert_eq!(config.get_path(), "memory_practice.db");
     }
 
     #[test]
     fn test_default_path_test_mode() {
-        let config = DatabaseConfig {
-            is_test_mode: true,
-            custom_path: None,
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_test();
         assert_eq!(config.get_path(), ":memory:");
     }
 
@@ -116,11 +166,7 @@ mod tests {
 
     #[test]
     fn test_custom_path_in_production_mode() {
-        let config = DatabaseConfig {
-            is_test_mode: false,
-            custom_path: Some("custom.db".to_string()),
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_production().with_path(Some("custom.db"));
         assert_eq!(config.get_path(), "custom.db");
     }
 
@@ -128,11 +174,7 @@ mod tests {
     fn test_custom_path_overrides_test_mode() {
         // When both --test and --db-path custom.db are provided,
         // custom path takes priority over test mode
-        let config = DatabaseConfig {
-            is_test_mode: true,
-            custom_path: Some("custom.db".to_string()),
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_test().with_path(Some("custom.db"));
         assert_eq!(config.get_path(), "custom.db");
     }
 
@@ -141,44 +183,28 @@ mod tests {
     #[test]
     fn test_custom_path_mem_alias_colon() {
         // ":mem:" should be recognized as in-memory database alias
-        let config = DatabaseConfig {
-            is_test_mode: false,
-            custom_path: Some(":mem:".to_string()),
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_production().with_path(Some(":mem:"));
         assert_eq!(config.get_path(), ":memory:");
     }
 
     #[test]
     fn test_custom_path_mem_alias_word() {
         // "memory" should be recognized as in-memory database alias
-        let config = DatabaseConfig {
-            is_test_mode: false,
-            custom_path: Some("memory".to_string()),
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_production().with_path(Some("memory"));
         assert_eq!(config.get_path(), ":memory:");
     }
 
     #[test]
     fn test_custom_path_mem_alias_overrides_test_mode() {
         // Even with --test, ":mem:" alias should work
-        let config = DatabaseConfig {
-            is_test_mode: true,
-            custom_path: Some(":mem:".to_string()),
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_test().with_path(Some(":mem:"));
         assert_eq!(config.get_path(), ":memory:");
     }
 
     #[test]
     fn test_custom_path_memory_alias_in_production() {
         // "memory" alias should work in production mode too
-        let config = DatabaseConfig {
-            is_test_mode: false,
-            custom_path: Some("memory".to_string()),
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_production().with_path(Some("memory"));
         assert_eq!(config.get_path(), ":memory:");
     }
 
@@ -186,31 +212,19 @@ mod tests {
 
     #[test]
     fn test_custom_path_with_extension() {
-        let config = DatabaseConfig {
-            is_test_mode: false,
-            custom_path: Some("test_database.sqlite3".to_string()),
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_production().with_path(Some("test_database.sqlite3"));
         assert_eq!(config.get_path(), "test_database.sqlite3");
     }
 
     #[test]
     fn test_custom_path_with_directory() {
-        let config = DatabaseConfig {
-            is_test_mode: false,
-            custom_path: Some("/tmp/my_app.db".to_string()),
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_production().with_path(Some("/tmp/my_app.db"));
         assert_eq!(config.get_path(), "/tmp/my_app.db");
     }
 
     #[test]
     fn test_custom_path_relative_directory() {
-        let config = DatabaseConfig {
-            is_test_mode: false,
-            custom_path: Some("./data/app.db".to_string()),
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_production().with_path(Some("./data/app.db"));
         assert_eq!(config.get_path(), "./data/app.db");
     }
 
@@ -218,22 +232,14 @@ mod tests {
 
     #[test]
     fn test_create_with_test_mode() {
-        let config = DatabaseConfig {
-            is_test_mode: true,
-            custom_path: None,
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_test();
         let db = DatabaseFactory::create(config);
         assert!(db.is_ok());
     }
 
     #[test]
     fn test_create_with_memory_database() {
-        let config = DatabaseConfig {
-            is_test_mode: true,
-            custom_path: None,
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_test();
         let db = DatabaseFactory::create(config).expect("Failed to create in-memory database");
         // Verify the database works by executing a simple query
         assert!(db.count_operations().is_ok());
@@ -241,11 +247,7 @@ mod tests {
 
     #[test]
     fn test_create_with_memory_alias_mem() {
-        let config = DatabaseConfig {
-            is_test_mode: false,
-            custom_path: Some(":mem:".to_string()),
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_production().with_path(Some(":mem:"));
         let db = DatabaseFactory::create(config)
             .expect("Failed to create in-memory database with :mem: alias");
         assert!(db.count_operations().is_ok());
@@ -253,11 +255,7 @@ mod tests {
 
     #[test]
     fn test_create_with_memory_alias_word() {
-        let config = DatabaseConfig {
-            is_test_mode: false,
-            custom_path: Some("memory".to_string()),
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_production().with_path(Some("memory"));
         let db = DatabaseFactory::create(config)
             .expect("Failed to create in-memory database with memory alias");
         assert!(db.count_operations().is_ok());
@@ -266,11 +264,7 @@ mod tests {
     #[test]
     fn test_custom_path_with_test_mode() {
         // Custom path should override test mode
-        let config = DatabaseConfig {
-            is_test_mode: true,
-            custom_path: Some("staging.db".to_string()),
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_test().with_path(Some("staging.db"));
         assert_eq!(config.get_path(), "staging.db");
     }
 
@@ -279,44 +273,28 @@ mod tests {
     #[test]
     fn test_priority_mem_alias_over_test_mode() {
         // Priority: :mem: alias > test mode
-        let config = DatabaseConfig {
-            is_test_mode: true,
-            custom_path: Some(":mem:".to_string()),
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_test().with_path(Some(":mem:"));
         assert_eq!(config.get_path(), ":memory:");
     }
 
     #[test]
     fn test_priority_custom_path_over_test_mode() {
         // Priority: custom path > test mode
-        let config = DatabaseConfig {
-            is_test_mode: true,
-            custom_path: Some("override.db".to_string()),
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_test().with_path(Some("override.db"));
         assert_eq!(config.get_path(), "override.db");
     }
 
     #[test]
     fn test_priority_custom_path_over_default() {
         // Priority: custom path > default
-        let config = DatabaseConfig {
-            is_test_mode: false,
-            custom_path: Some("custom.db".to_string()),
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_production().with_path(Some("custom.db"));
         assert_eq!(config.get_path(), "custom.db");
     }
 
     #[test]
     fn test_priority_test_mode_over_default() {
         // Priority: test mode > default
-        let config = DatabaseConfig {
-            is_test_mode: true,
-            custom_path: None,
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 12).unwrap(),
-        };
+        let config = DatabaseConfig::for_test();
         assert_eq!(config.get_path(), ":memory:");
     }
 
@@ -359,11 +337,7 @@ mod tests {
     #[test]
     fn test_database_config_with_current_date() {
         use chrono::NaiveDate;
-        let config = DatabaseConfig {
-            is_test_mode: true,
-            custom_path: None,
-            current_date: NaiveDate::from_ymd_opt(2025, 11, 18).unwrap(),
-        };
+        let config = DatabaseConfig::for_test().with_date(NaiveDate::from_ymd_opt(2025, 11, 18).unwrap());
         assert_eq!(
             config.current_date,
             NaiveDate::from_ymd_opt(2025, 11, 18).unwrap()
