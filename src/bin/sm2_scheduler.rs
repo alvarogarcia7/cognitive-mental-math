@@ -1,14 +1,30 @@
 use chrono::{DateTime, Utc};
+use clap::Parser;
 use memory_practice::quiz_service::QuizService;
 use memory_practice::spaced_repetition::{ReviewItem, ReviewScheduler};
 use memory_practice::time_format::format_time_difference;
 use sra::sm_2::Quality;
-use std::env;
+
+/// Demonstrates SM-2 spaced repetition scheduling with different quality grades
+#[derive(Parser, Debug)]
+#[command(name = "SM2 Scheduler")]
+#[command(about = "Demonstrates SM-2 spaced repetition scheduling", long_about = None)]
+struct Args {
+    /// Current number of repetitions (non-negative integer)
+    #[arg(value_name = "NUM", help = "Current number of repetitions (non-negative integer)")]
+    repetitions: i32,
+
+    /// Current interval in days (non-negative integer)
+    #[arg(value_name = "DAYS", help = "Current interval in days (non-negative integer)")]
+    interval: i32,
+
+    /// Current ease factor (floating point, typically 1.3 - 2.6)
+    #[arg(value_name = "FACTOR", help = "Current ease factor (floating point, typically 1.3 - 2.6)")]
+    ease_factor: f32,
+}
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-
-    let (repetitions, interval, ease_factor) = validate_input(args);
+    let args = Args::parse();
 
     let scheduler = ReviewScheduler::new();
     let now = Utc::now();
@@ -16,61 +32,22 @@ fn main() {
     let review_item = ReviewItem {
         id: Some(1),
         operation_id: 1,
-        repetitions,
-        interval,
-        ease_factor,
+        repetitions: args.repetitions,
+        interval: args.interval,
+        ease_factor: args.ease_factor,
         next_review_date: now,
         last_reviewed_date: None,
     };
 
     println!(
         "SM-2 Scheduling Results for: reps={}, interval={}, ease={:.2}",
-        repetitions, interval, ease_factor
+        args.repetitions, args.interval, args.ease_factor
     );
 
     compute_and_print(&scheduler, &review_item, now, Quality::Grade0);
     compute_and_print(&scheduler, &review_item, now, Quality::Grade3);
     compute_and_print(&scheduler, &review_item, now, Quality::Grade4);
     compute_and_print(&scheduler, &review_item, now, Quality::Grade5);
-}
-
-fn validate_input(args: Vec<String>) -> (i32, i32, f32) {
-    if args.len() != 4 {
-        eprintln!("Usage: {} <repetitions> <interval> <ease_factor>", args[0]);
-        eprintln!();
-        eprintln!("Arguments:");
-        eprintln!("  <repetitions>  Current number of repetitions (non-negative integer)");
-        eprintln!("  <interval>     Current interval in days (non-negative integer)");
-        eprintln!("  <ease_factor>  Current ease factor (floating point, typically 1.3 - 2.6)");
-        eprintln!();
-        eprintln!("Example: {} 3 10 2.5", args[0]);
-        std::process::exit(1);
-    }
-
-    let repetitions: i32 = match args[1].parse() {
-        Ok(n) => n,
-        Err(_) => {
-            eprintln!("Error: repetitions must be a non-negative integer");
-            std::process::exit(1);
-        }
-    };
-
-    let interval: i32 = match args[2].parse() {
-        Ok(n) => n,
-        Err(_) => {
-            eprintln!("Error: interval must be a non-negative integer");
-            std::process::exit(1);
-        }
-    };
-
-    let ease_factor: f32 = match args[3].parse() {
-        Ok(n) => n,
-        Err(_) => {
-            eprintln!("Error: ease_factor must be a valid floating point number");
-            std::process::exit(1);
-        }
-    };
-    (repetitions, interval, ease_factor)
 }
 
 fn compute_and_print(

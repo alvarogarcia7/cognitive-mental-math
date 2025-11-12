@@ -1,4 +1,5 @@
 pub mod answer_evaluator_service;
+pub mod cli;
 pub mod database;
 pub mod database_factory;
 pub mod date_provider;

@@ -115,7 +115,7 @@ impl DatabaseFactory {
         Database::with_date_provider(&path, date_provider)
     }
 
-    /// Detects the database configuration from command line arguments
+    /// Detects the database configuration from command line arguments using clap
     ///
     /// Supported arguments:
     /// - `--test`: Use in-memory database
@@ -123,25 +123,22 @@ impl DatabaseFactory {
     /// - `--override-date <YYYY-MM-DD>`: Override the current date for the database (format: YYYY-MM-DD)
     ///
     /// If `--override-date` is not provided, uses today's date.
+    /// Date validation errors will cause the program to exit with an error message.
     pub fn detect_config() -> DatabaseConfig {
-        let args: Vec<String> = std::env::args().collect();
-        let is_test_mode = args.iter().any(|arg| arg == "--test");
+        use crate::cli::Args;
 
-        let custom_path = args
-            .iter()
-            .position(|arg| arg == "--db-path")
-            .and_then(|idx| args.get(idx + 1).cloned());
-
+        let args = Args::parse_args();
         let current_date = args
-            .iter()
-            .position(|arg| arg == "--override-date")
-            .and_then(|idx| args.get(idx + 1))
-            .and_then(|date_str| NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok())
+            .validate_override_date()
+            .unwrap_or_else(|e| {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            })
             .unwrap_or_else(|| chrono::Local::now().naive_local().date());
 
         DatabaseConfig {
-            is_test_mode,
-            custom_path,
+            is_test_mode: args.test,
+            custom_path: args.db_path.as_ref().map(|p| p.to_string_lossy().to_string()),
             current_date,
         }
     }

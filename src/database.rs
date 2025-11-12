@@ -758,7 +758,7 @@ pub struct AnswerRecord {
 
 #[cfg(test)]
 mod tests {
-    use crate::database_factory::{DatabaseConfig, DatabaseConfigBuilder, DatabaseFactory};
+    use crate::database_factory::{DatabaseConfig, DatabaseFactory};
     use super::*;
 
     fn create_test_db() -> Database {

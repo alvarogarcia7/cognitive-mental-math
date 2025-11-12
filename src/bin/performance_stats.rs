@@ -1,26 +1,24 @@
 use chrono::Utc;
+use clap::Parser;
 use memory_practice::database::Database;
 use memory_practice::spaced_repetition::AnswerTimedEvaluator;
-use std::env;
+use std::path::PathBuf;
+
+/// Analyzes performance statistics across different time periods
+#[derive(Parser, Debug)]
+#[command(name = "Performance Stats")]
+#[command(about = "Analyzes performance statistics across different time periods", long_about = None)]
+struct Args {
+    /// Path to the SQLite database file
+    #[arg(value_name = "DATABASE_FILE", help = "Path to the SQLite database file")]
+    database_file: PathBuf,
+}
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    let args = Args::parse();
+    let db_path = args.database_file.to_string_lossy();
 
-    if args.len() != 2 {
-        eprintln!("Usage: {} <database_file>", args[0]);
-        eprintln!();
-        eprintln!("Analyzes performance statistics across different time periods.");
-        eprintln!();
-        eprintln!("Arguments:");
-        eprintln!("  <database_file>  Path to the SQLite database file");
-        eprintln!();
-        eprintln!("Example: {} ~/memory_practice.db", args[0]);
-        std::process::exit(1);
-    }
-
-    let db_path = &args[1];
-
-    let db = match Database::new(db_path) {
+    let db = match Database::new(&db_path) {
         Ok(db) => db,
         Err(e) => {
             eprintln!("Error opening database: {}", e);
