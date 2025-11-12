@@ -10,7 +10,10 @@ use std::path::PathBuf;
 #[command(about = "Analyzes performance statistics across different time periods", long_about = None)]
 struct Args {
     /// Path to the SQLite database file
-    #[arg(value_name = "DATABASE_FILE", help = "Path to the SQLite database file")]
+    #[arg(
+        value_name = "DATABASE_FILE",
+        help = "Path to the SQLite database file"
+    )]
     database_file: PathBuf,
 }
 
@@ -185,14 +188,14 @@ fn main() {
         }
 
         // Compare last 30 days vs last 10 decks
-        if let (Some(last_30_eval), Some(last_10_eval)) = (last_30, last_10) {
-            if !stats_are_same(&last_30_eval, &last_10_eval) {
-                print_improvement(
-                    last_30_eval.average,
-                    last_10_eval.average,
-                    "Last 10 decks vs Last 30 days",
-                );
-            }
+        if let (Some(last_30_eval), Some(last_10_eval)) = (last_30, last_10)
+            && !stats_are_same(&last_30_eval, &last_10_eval)
+        {
+            print_improvement(
+                last_30_eval.average,
+                last_10_eval.average,
+                "Last 10 decks vs Last 30 days",
+            );
         }
 
         println!();

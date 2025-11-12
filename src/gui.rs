@@ -98,10 +98,10 @@ impl MemoryPracticeApp {
 
     pub fn start_new_block(&mut self) {
         // Mark previous deck as abandoned if not completed
-        if let Some(deck_id) = self.current_deck_id {
-            if self.state != AppState::ShowingResults {
-                let _ = self.db.abandon_deck(deck_id);
-            }
+        if let Some(deck_id) = self.current_deck_id
+            && self.state != AppState::ShowingResults
+        {
+            let _ = self.db.abandon_deck(deck_id);
         }
 
         // Create new deck
@@ -166,12 +166,12 @@ impl MemoryPracticeApp {
 impl Drop for MemoryPracticeApp {
     fn drop(&mut self) {
         // When app closes, if deck is in progress (not completed), write results and abandon
-        if let Some(_deck_id) = self.current_deck_id {
-            if self.state != AppState::ShowingResults {
-                // Write any answers that were collected to database before abandoning
-                self.write_results_to_database();
-                let _ = self.db.abandon_deck(_deck_id);
-            }
+        if let Some(_deck_id) = self.current_deck_id
+            && self.state != AppState::ShowingResults
+        {
+            // Write any answers that were collected to database before abandoning
+            self.write_results_to_database();
+            let _ = self.db.abandon_deck(_deck_id);
         }
     }
 }

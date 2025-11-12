@@ -30,10 +30,10 @@ pub struct DatabaseConfigBuilder {
 
 impl DatabaseConfigBuilder {
     fn default() -> DatabaseConfigBuilder {
-        DatabaseConfigBuilder{
+        DatabaseConfigBuilder {
             is_test_mode: false,
             db_path: None,
-            current_date:  Utc::now().naive_local().date()
+            current_date: Utc::now().naive_local().date(),
         }
     }
 }
@@ -57,7 +57,7 @@ impl DatabaseConfigBuilder {
         self
     }
 
-    pub fn date_ymd(self, year: i32, month: u32, date: u32) -> Self{
+    pub fn date_ymd(self, year: i32, month: u32, date: u32) -> Self {
         self.date(NaiveDate::from_ymd_opt(year, month, date).unwrap())
     }
 
@@ -111,7 +111,8 @@ impl DatabaseFactory {
     /// Creates a database with the specified configuration
     pub fn create(config: DatabaseConfig) -> Result<Database> {
         let path = config.get_path();
-        let date_provider: Arc<dyn DateProvider> = Arc::new(OverrideDateProvider::new(config.current_date));
+        let date_provider: Arc<dyn DateProvider> =
+            Arc::new(OverrideDateProvider::new(config.current_date));
         Database::with_date_provider(&path, date_provider)
     }
 
@@ -138,7 +139,10 @@ impl DatabaseFactory {
 
         DatabaseConfig {
             is_test_mode: args.test,
-            db_path: args.db_path.as_ref().map(|p| p.to_string_lossy().to_string()),
+            db_path: args
+                .db_path
+                .as_ref()
+                .map(|p| p.to_string_lossy().to_string()),
             current_date,
         }
     }
@@ -212,19 +216,25 @@ mod tests {
 
     #[test]
     fn test_custom_path_with_extension() {
-        let config = DatabaseConfig::builder().path(Some("test_database.sqlite3")).build();
+        let config = DatabaseConfig::builder()
+            .path(Some("test_database.sqlite3"))
+            .build();
         assert_eq!(config.get_path(), "test_database.sqlite3");
     }
 
     #[test]
     fn test_custom_path_with_directory() {
-        let config = DatabaseConfig::builder().path(Some("/tmp/my_app.db")).build();
+        let config = DatabaseConfig::builder()
+            .path(Some("/tmp/my_app.db"))
+            .build();
         assert_eq!(config.get_path(), "/tmp/my_app.db");
     }
 
     #[test]
     fn test_custom_path_relative_directory() {
-        let config = DatabaseConfig::builder().path(Some("./data/app.db")).build();
+        let config = DatabaseConfig::builder()
+            .path(Some("./data/app.db"))
+            .build();
         assert_eq!(config.get_path(), "./data/app.db");
     }
 
@@ -337,7 +347,9 @@ mod tests {
     #[test]
     fn test_database_config_with_current_date() {
         use chrono::NaiveDate;
-        let config = DatabaseConfig::builder().date(NaiveDate::from_ymd_opt(2025, 11, 18).unwrap()).build();
+        let config = DatabaseConfig::builder()
+            .date(NaiveDate::from_ymd_opt(2025, 11, 18).unwrap())
+            .build();
         assert_eq!(
             config.current_date,
             NaiveDate::from_ymd_opt(2025, 11, 18).unwrap()

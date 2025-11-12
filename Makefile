@@ -46,11 +46,13 @@ build_and_test: build test ## Build and run tests
 	@echo "✅ Build and tests passed!"
 .PHONY: build_and_test
 
-pre-commit: build_and_test  clippy ## Run pre-commit checks
+pre-commit: ## Run pre-commit checks
+	git hook run pre-commit
 	@echo "✅ Pre-commit checks passed!"
 .PHONY: pre-commit
 
-pre-push: fmt-check build_and_test clippy ## Run pre-push checks (use with -j 2 for parallel execution)
+pre-push: ## Run pre-push checks (use with -j 2 for parallel execution)
+	git hook run pre-push
 	@echo "✅ Pre-push checks passed!"
 .PHONY: pre-push
 

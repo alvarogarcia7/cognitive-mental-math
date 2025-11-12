@@ -1,5 +1,5 @@
-use clap::Parser;
 use chrono::NaiveDate;
+use clap::Parser;
 use std::path::PathBuf;
 
 /// Mental math practice application using spaced repetition learning
@@ -34,16 +34,14 @@ impl Args {
     /// Validate the override_date argument if provided
     pub fn validate_override_date(&self) -> Result<Option<NaiveDate>, String> {
         match &self.override_date {
-            Some(date_str) => {
-                NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
-                    .map(Some)
-                    .map_err(|_| {
-                        format!(
-                            "Invalid date format for --override-date: '{}'. Expected YYYY-MM-DD",
-                            date_str
-                        )
-                    })
-            }
+            Some(date_str) => NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
+                .map(Some)
+                .map_err(|_| {
+                    format!(
+                        "Invalid date format for --override-date: '{}'. Expected YYYY-MM-DD",
+                        date_str
+                    )
+                }),
             None => Ok(None),
         }
     }
@@ -82,7 +80,10 @@ mod tests {
             db_path: Some(PathBuf::from("/tmp/test.db")),
             override_date: None,
         };
-        assert_eq!(args.db_path.as_deref(), Some(PathBuf::from("/tmp/test.db").as_path()));
+        assert_eq!(
+            args.db_path.as_deref(),
+            Some(PathBuf::from("/tmp/test.db").as_path())
+        );
     }
 
     #[test]
@@ -151,7 +152,10 @@ mod tests {
             override_date: Some("2024-06-15".to_string()),
         };
         assert!(args.test);
-        assert_eq!(args.db_path.as_deref(), Some(PathBuf::from("/tmp/test.db").as_path()));
+        assert_eq!(
+            args.db_path.as_deref(),
+            Some(PathBuf::from("/tmp/test.db").as_path())
+        );
         assert_eq!(args.override_date, Some("2024-06-15".to_string()));
     }
 

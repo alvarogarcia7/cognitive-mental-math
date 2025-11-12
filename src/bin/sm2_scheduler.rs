@@ -11,15 +11,24 @@ use sra::sm_2::Quality;
 #[command(about = "Demonstrates SM-2 spaced repetition scheduling", long_about = None)]
 struct Args {
     /// Current number of repetitions (non-negative integer)
-    #[arg(value_name = "NUM", help = "Current number of repetitions (non-negative integer)")]
+    #[arg(
+        value_name = "NUM",
+        help = "Current number of repetitions (non-negative integer)"
+    )]
     repetitions: i32,
 
     /// Current interval in days (non-negative integer)
-    #[arg(value_name = "DAYS", help = "Current interval in days (non-negative integer)")]
+    #[arg(
+        value_name = "DAYS",
+        help = "Current interval in days (non-negative integer)"
+    )]
     interval: i32,
 
     /// Current ease factor (floating point, typically 1.3 - 2.6)
-    #[arg(value_name = "FACTOR", help = "Current ease factor (floating point, typically 1.3 - 2.6)")]
+    #[arg(
+        value_name = "FACTOR",
+        help = "Current ease factor (floating point, typically 1.3 - 2.6)"
+    )]
     ease_factor: f32,
 }
 

@@ -1,34 +1,52 @@
 repos:
   - repo: local
     hooks:
-#      - id: make-fmt
-#        name: make fmt
-#        entry: make fmt
-#        language: system
-#        stages: [commit]
-#        pass_filenames: false
-#        always_run: true
-
-      - id: make-test
-        name: make test
-        entry: make test
+      - id: make-fmt
+        name: Format code
+        entry: make fmt
         language: system
-        stages: [commit]
+        stages: [ pre-commit ]
         pass_filenames: false
         always_run: true
 
-#      - id: make-fmt-check
-#        name: make fmt-check
-#        entry: make fmt-check
-#        language: system
-#        stages: [push]
-#        pass_filenames: false
-#        always_run: true
+      - id: make-test
+        name: Build & Test
+        entry: make test
+        language: system
+        stages: [ pre-commit ]
+        pass_filenames: false
+        always_run: true
+
+      - id: make-clippy-fix
+        name: Clippy fix (SAST)
+        entry: make clippy-fix
+        language: system
+        stages: [ pre-commit ]
+        pass_filenames: false
+        always_run: true
+
+#### PRE-PUSH HOOKS ####
+
+      - id: make-fmt-push
+        name: Format code
+        entry: make fmt-check
+        language: system
+        stages: [ pre-push ]
+        pass_filenames: false
+        always_run: true
 
       - id: make-test-push
         name: make test (push)
         entry: make test
         language: system
-        stages: [push]
+        stages: [ pre-push ]
+        pass_filenames: false
+        always_run: true
+
+      - id: make-clippy-push
+        name: Clippy (push)
+        entry: make clippy
+        language: system
+        stages: [ pre-push ]
         pass_filenames: false
         always_run: true

@@ -31,10 +31,7 @@ impl Database {
         Self::init(db_path, Arc::new(SystemDateProvider))
     }
 
-    pub fn with_date_provider(
-        db_path: &str,
-        date_provider: Arc<dyn DateProvider>,
-    ) -> Result<Self> {
+    pub fn with_date_provider(db_path: &str, date_provider: Arc<dyn DateProvider>) -> Result<Self> {
         Self::init(db_path, date_provider)
     }
 
@@ -758,8 +755,8 @@ pub struct AnswerRecord {
 
 #[cfg(test)]
 mod tests {
-    use crate::database_factory::{DatabaseConfig, DatabaseFactory};
     use super::*;
+    use crate::database_factory::{DatabaseConfig, DatabaseFactory};
 
     fn create_test_db() -> Database {
         // Use an in-memory database for each test
@@ -1679,8 +1676,8 @@ mod tests {
 
     #[test]
     fn test_create_deck_with_override_date() {
-        use chrono::NaiveDate;
         use crate::date_provider::OverrideDateProvider;
+        use chrono::NaiveDate;
         use std::sync::Arc;
 
         let override_date = NaiveDate::from_ymd_opt(2025, 11, 18).unwrap();
@@ -1700,8 +1697,8 @@ mod tests {
 
     #[test]
     fn test_complete_deck_with_override_date() {
-        use chrono::NaiveDate;
         use crate::date_provider::OverrideDateProvider;
+        use chrono::NaiveDate;
         use std::sync::Arc;
 
         let override_date = NaiveDate::from_ymd_opt(2025, 11, 25).unwrap();
@@ -1736,8 +1733,8 @@ mod tests {
 
     #[test]
     fn test_override_date_affects_multiple_operations() {
-        use chrono::NaiveDate;
         use crate::date_provider::OverrideDateProvider;
+        use chrono::NaiveDate;
         use std::sync::Arc;
 
         let override_date = NaiveDate::from_ymd_opt(2025, 12, 1).unwrap();
@@ -1794,10 +1791,12 @@ mod tests {
         assert_eq!(days_with_answers.len(), 1);
     }
 
-
     #[test]
     fn test_get_days_with_answers_with_for_given_day() {
-        let db_config = DatabaseConfig::builder().test_mode().date_ymd(2025, 11, 12).build();
+        let db_config = DatabaseConfig::builder()
+            .test_mode()
+            .date_ymd(2025, 11, 12)
+            .build();
         let db = DatabaseFactory::create(db_config).unwrap();
         let deck_id = db.create_deck().unwrap();
         let op_id = db.insert_operation("ADD", 2, 3, 5, Some(deck_id)).unwrap();
