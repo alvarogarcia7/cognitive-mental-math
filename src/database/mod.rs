@@ -6,8 +6,7 @@ pub mod operations;
 pub mod review_items;
 
 use crate::date_provider::{DateProvider, SystemDateProvider};
-use crate::deck::{Deck, DeckStatus, DeckSummary};
-use crate::row_factories::{DeckRowFactory, ReviewItemRowFactory};
+use crate::deck::{Deck, DeckSummary};
 use crate::spaced_repetition::{AnswerTimedEvaluator, ReviewItem};
 use chrono::{DateTime, Utc};
 use rusqlite::{Connection, Result};
@@ -21,7 +20,7 @@ pub use review_items::ReviewItemsRepository;
 
 /// Main Database struct providing access to all repositories
 pub struct Database {
-    conn: Connection,
+    pub conn: Connection,
     date_provider: Arc<dyn DateProvider>,
 }
 
@@ -82,7 +81,13 @@ impl Database {
         deck_id: Option<i64>,
     ) -> Result<()> {
         let repo = AnswersRepository::new(&self.conn);
-        repo.insert(operation_id, user_answer, is_correct, time_spent_seconds, deck_id)
+        repo.insert(
+            operation_id,
+            user_answer,
+            is_correct,
+            time_spent_seconds,
+            deck_id,
+        )
     }
 
     pub fn get_answer(&self, answer_id: i64) -> Result<Option<AnswerRecord>> {
@@ -172,7 +177,9 @@ impl Database {
         operation_type: &str,
     ) -> Result<Option<AnswerTimedEvaluator>> {
         let analytics = Analytics::new(&self.conn);
-        analytics.time_statistics().for_operation_type(operation_type)
+        analytics
+            .time_statistics()
+            .for_operation_type(operation_type)
     }
 
     pub fn compute_time_statistics_all_operations(
@@ -203,52 +210,11 @@ impl Database {
         analytics.accuracy().all_operations()
     }
 
-    pub fn compute_total_accuracy(&self) -> Result<(i64, i64, f64)> {
-        let analytics = Analytics::new(&self.conn);
-        analytics.accuracy().total_accuracy()
-    }
-
     pub fn compute_accuracy_all_operations_last_30_days(
         &self,
     ) -> Result<std::collections::HashMap<String, (i64, i64, f64)>> {
         let analytics = Analytics::new(&self.conn);
         analytics.accuracy().all_operations_last_30_days()
-    }
-
-    pub fn compute_total_accuracy_last_30_days(&self) -> Result<(i64, i64, f64)> {
-        let analytics = Analytics::new(&self.conn);
-        analytics.accuracy().total_accuracy_last_30_days()
-    }
-
-    pub fn compute_accuracy_all_operations_last_10_decks(
-        &self,
-    ) -> Result<std::collections::HashMap<String, (i64, i64, f64)>> {
-        let analytics = Analytics::new(&self.conn);
-        analytics.accuracy().all_operations_last_10_decks()
-    }
-
-    pub fn compute_total_accuracy_last_10_decks(&self) -> Result<(i64, i64, f64)> {
-        let analytics = Analytics::new(&self.conn);
-        analytics.accuracy().total_accuracy_last_10_decks()
-    }
-
-    pub fn calculate_consecutive_days_streak(&self) -> Result<i32> {
-        let analytics = Analytics::new(&self.conn);
-        analytics.streak().calculate_consecutive_days()
-    }
-
-    pub fn get_days_with_answers(&self, now: DateTime<Utc>) -> Result<Vec<String>> {
-        let analytics = Analytics::new(&self.conn);
-        analytics.streak().get_days_with_answers(now)
-    }
-
-    pub fn get_missing_days_in_streak(
-        &self,
-        max_days: i32,
-        now: DateTime<Utc>,
-    ) -> Result<Vec<String>> {
-        let analytics = Analytics::new(&self.conn);
-        analytics.streak().get_missing_days(max_days, now)
     }
 }
 
@@ -342,7 +308,9 @@ mod tests {
         db.insert_answer(op_id, 5, true, 1.0, Some(deck_id))
             .unwrap();
 
-        let days_with_answers = db.get_days_with_answers(Utc::now()).unwrap();
+        let now = Utc::now();
+        let analytics = Analytics::new(&db.conn);
+        let days_with_answers = analytics.streak().get_days_with_answers(now).unwrap();
         assert_eq!(days_with_answers, vec!["2025-11-12"]);
     }
 }

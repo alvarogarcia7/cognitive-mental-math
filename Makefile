@@ -71,7 +71,10 @@ clippy: ## Run clippy linter
 
 
 clippy-fix: ## Run clippy fix
-	cargo clippy --fix
+	cargo clippy --fix --allow-dirty -- -D warnings
+
+
+
 .PHONY: clippy-fix
 
 check: fmt-check clippy test ## Run all checks

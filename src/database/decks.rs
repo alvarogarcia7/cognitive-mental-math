@@ -1,7 +1,7 @@
 use crate::deck::{Deck, DeckStatus, DeckSummary};
 use crate::row_factories::DeckRowFactory;
 use chrono::{DateTime, Utc};
-use rusqlite::{params, Connection, Result};
+use rusqlite::{Connection, Result, params};
 
 pub struct DecksRepository<'a> {
     conn: &'a Connection,
@@ -9,7 +9,10 @@ pub struct DecksRepository<'a> {
 }
 
 impl<'a> DecksRepository<'a> {
-    pub fn new(conn: &'a Connection, get_current_time: Box<dyn Fn() -> DateTime<Utc> + 'a>) -> Self {
+    pub fn new(
+        conn: &'a Connection,
+        get_current_time: Box<dyn Fn() -> DateTime<Utc> + 'a>,
+    ) -> Self {
         DecksRepository {
             conn,
             get_current_time,

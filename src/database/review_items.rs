@@ -3,7 +3,7 @@ use crate::spaced_repetition::ReviewItem;
 use crate::time_format::format_time_difference;
 use chrono::{DateTime, Utc};
 use log::debug;
-use rusqlite::{params, Connection, Result};
+use rusqlite::{Connection, Result, params};
 
 pub struct ReviewItemsRepository<'a> {
     conn: &'a Connection,
@@ -246,7 +246,9 @@ mod tests {
         let op_id2 = ops_repo.insert("MULTIPLY", 3, 4, 12, None).unwrap();
 
         review_repo.insert(op_id1, now).unwrap();
-        review_repo.insert(op_id2, now + chrono::Duration::days(1)).unwrap();
+        review_repo
+            .insert(op_id2, now + chrono::Duration::days(1))
+            .unwrap();
 
         let item1 = review_repo.get(op_id1).unwrap().unwrap();
         let item2 = review_repo.get(op_id2).unwrap().unwrap();

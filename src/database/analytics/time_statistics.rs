@@ -151,8 +151,8 @@ impl<'a> TimeStatisticsRepository<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::database::connection::init_connection;
     use crate::database::answers::AnswersRepository;
+    use crate::database::connection::init_connection;
     use crate::database::decks::DecksRepository;
     use crate::database::operations::OperationsRepository;
 
@@ -210,9 +210,7 @@ mod tests {
         let deck_id = decks_repo.create().unwrap();
 
         // Add ADD operations
-        let op_id1 = ops_repo
-            .insert("ADD", 2, 3, 5, Some(deck_id))
-            .unwrap();
+        let op_id1 = ops_repo.insert("ADD", 2, 3, 5, Some(deck_id)).unwrap();
         answers_repo
             .insert(op_id1, 5, true, 1.0, Some(deck_id))
             .unwrap();

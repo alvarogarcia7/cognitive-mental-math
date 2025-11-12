@@ -1,6 +1,6 @@
 use chrono::Utc;
 use clap::Parser;
-use memory_practice::database::Database;
+use memory_practice::database::{Analytics, Database};
 use memory_practice::spaced_repetition::AnswerTimedEvaluator;
 use std::path::PathBuf;
 
@@ -76,7 +76,9 @@ fn main() {
         }
     };
 
-    let last_10_decks_accuracy_stats = match db.compute_accuracy_all_operations_last_10_decks() {
+    let analytics = Analytics::new(&db.conn);
+    let result = analytics.accuracy().all_operations_last_10_decks();
+    let last_10_decks_accuracy_stats = match result {
         Ok(stats) => stats,
         Err(e) => {
             eprintln!("Error fetching last 10 decks accuracy statistics: {}", e);
@@ -85,7 +87,7 @@ fn main() {
     };
 
     // Fetch total accuracy
-    let total_accuracy = match db.compute_total_accuracy() {
+    let total_accuracy = match analytics.accuracy().total_accuracy() {
         Ok(stats) => stats,
         Err(e) => {
             eprintln!("Error fetching total accuracy: {}", e);
@@ -93,20 +95,28 @@ fn main() {
         }
     };
 
-    let total_accuracy_last_30_days = db
-        .compute_total_accuracy_last_30_days()
+    let total_accuracy_last_30_days = analytics
+        .accuracy()
+        .total_accuracy_last_30_days()
         .unwrap_or((0, 0, 0.0));
-    let total_accuracy_last_10_decks = db
-        .compute_total_accuracy_last_10_decks()
+    let total_accuracy_last_10_decks = analytics
+        .accuracy()
+        .total_accuracy_last_10_decks()
         .unwrap_or((0, 0, 0.0));
 
     // Calculate consecutive days streak
-    let consecutive_days_streak = db.calculate_consecutive_days_streak().unwrap_or(0);
+    let consecutive_days_streak = analytics.streak().calculate_consecutive_days().unwrap_or(0);
 
     // Get days with and without answers in the last 10 days
     let now = Utc::now();
-    let days_with_answers = db.get_days_with_answers(now).unwrap_or_default();
-    let missing_days = db.get_missing_days_in_streak(10, now).unwrap_or_default();
+    let days_with_answers = analytics
+        .streak()
+        .get_days_with_answers(now)
+        .unwrap_or_default();
+    let missing_days = analytics
+        .streak()
+        .get_missing_days(10, now)
+        .unwrap_or_default();
 
     println!("Performance Analysis Report");
     println!("===========================");

@@ -105,11 +105,7 @@ impl<'a> StreakRepository<'a> {
     /// Ignores the max_days parameter for backward compatibility but always checks last 10 days
     /// Example: if in the last 10 days answers exist on [2025-01-10, 2025-01-08, 2025-01-05]
     /// returns [2025-01-09, 2025-01-07, 2025-01-06, 2025-01-04, 2025-01-03, 2025-01-02, 2025-01-01]
-    pub fn get_missing_days(
-        &self,
-        _max_days: i32,
-        now: DateTime<Utc>,
-    ) -> Result<Vec<String>> {
+    pub fn get_missing_days(&self, _max_days: i32, now: DateTime<Utc>) -> Result<Vec<String>> {
         // Always check the last 10 days
         let today = now.date_naive();
         let ten_days_ago = today - chrono::Duration::days(9); // 10 days including today
@@ -150,8 +146,8 @@ impl<'a> StreakRepository<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::database::connection::init_connection;
     use crate::database::answers::AnswersRepository;
+    use crate::database::connection::init_connection;
     use crate::database::decks::DecksRepository;
     use crate::database::operations::OperationsRepository;
 
