@@ -88,3 +88,7 @@ demo-scheduler: build ## Run the demo scheduler
 	cargo run --bin sm2_scheduler 2 1 2.5
 	cargo run --bin sm2_scheduler 2 3 2.5
 .PHONY: demo-scheduler
+
+performance_stats:
+	cargo run --bin performance_stats data/sample.db
+.PHONY: performance_stats
