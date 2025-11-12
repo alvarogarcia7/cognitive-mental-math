@@ -102,8 +102,8 @@ impl QuizService {
     ) -> QuestionResult {
         let mut updated_result = result.clone();
 
-        if let Some(operation_id) = result.original_operation_id
-            && self
+        if let Some(operation_id) = result.original_operation_id {
+            if self
                 .db
                 .insert_answer(
                     operation_id,
@@ -113,39 +113,41 @@ impl QuizService {
                     Some(deck_id),
                 )
                 .is_ok()
-            && let Ok(Some(mut review_item)) = self.db.get_review_item(operation_id)
-        {
-            let stats = self
-                .evaluator_service
-                .get_evaluator(result.operation.operation_type.as_str());
+            {
+                if let Ok(Some(mut review_item)) = self.db.get_review_item(operation_id) {
+                    let stats = self
+                        .evaluator_service
+                        .get_evaluator(result.operation.operation_type.as_str());
 
-            let quality = stats.evaluate_performance(result.is_correct, result.time_spent);
-            let (reps, interval, ease, next_date) =
-                scheduler.process_review(&review_item, quality);
+                    let quality = stats.evaluate_performance(result.is_correct, result.time_spent);
+                    let (reps, interval, ease, next_date) =
+                        scheduler.process_review(&review_item, quality);
 
-            let quality_str = Self::quality_to_string(quality);
+                    let quality_str = Self::quality_to_string(quality);
 
-            info!(
-                "Review: {} | Quality: {} | Next review: {} | Reps: {}, Interval: {} days, Ease: {:.2}",
-                question_str,
-                quality_str,
-                format_time_difference(Utc::now(), next_date),
-                reps,
-                interval,
-                ease
-            );
+                    info!(
+                        "Review: {} | Quality: {} | Next review: {} | Reps: {}, Interval: {} days, Ease: {:.2}",
+                        question_str,
+                        quality_str,
+                        format_time_difference(Utc::now(), next_date),
+                        reps,
+                        interval,
+                        ease
+                    );
 
-            review_item.repetitions = reps;
-            review_item.interval = interval;
-            review_item.ease_factor = ease;
-            review_item.next_review_date = next_date;
-            review_item.last_reviewed_date = Some(Utc::now());
+                    review_item.repetitions = reps;
+                    review_item.interval = interval;
+                    review_item.ease_factor = ease;
+                    review_item.next_review_date = next_date;
+                    review_item.last_reviewed_date = Some(Utc::now());
 
-            let _ = self.db.update_review_item(&review_item);
+                    let _ = self.db.update_review_item(&review_item);
 
-            // Update the result with grade and next review date
-            updated_result.grade = Some(quality);
-            updated_result.next_review_date = Some(next_date);
+                    // Update the result with grade and next review date
+                    updated_result.grade = Some(quality);
+                    updated_result.next_review_date = Some(next_date);
+                }
+            }
         }
 
         updated_result
@@ -168,8 +170,8 @@ impl QuizService {
             result.operation.operand2,
             result.operation.result,
             Some(deck_id),
-        )
-            && self
+        ) {
+            if self
                 .db
                 .insert_answer(
                     operation_id,
@@ -179,50 +181,51 @@ impl QuizService {
                     Some(deck_id),
                 )
                 .is_ok()
-        {
-            let stats = self
-                .evaluator_service
-                .get_evaluator(result.operation.operation_type.as_str());
+            {
+                let stats = self
+                    .evaluator_service
+                    .get_evaluator(result.operation.operation_type.as_str());
 
-            let quality = stats.evaluate_performance(result.is_correct, result.time_spent);
+                let quality = stats.evaluate_performance(result.is_correct, result.time_spent);
 
-            // Create a review item with SM-2 defaults and let the scheduler determine timing
-            let mut review_item = ReviewItem {
-                id: None,
-                operation_id,
-                repetitions: 0,
-                interval: 0,
-                ease_factor: 2.5,
-                next_review_date: Utc::now(),
-                last_reviewed_date: None,
-            };
+                // Create a review item with SM-2 defaults and let the scheduler determine timing
+                let mut review_item = ReviewItem {
+                    id: None,
+                    operation_id,
+                    repetitions: 0,
+                    interval: 0,
+                    ease_factor: 2.5,
+                    next_review_date: Utc::now(),
+                    last_reviewed_date: None,
+                };
 
-            let (reps, interval, ease, next_date) =
-                scheduler.process_review(&review_item, quality);
+                let (reps, interval, ease, next_date) =
+                    scheduler.process_review(&review_item, quality);
 
-            let quality_str = Self::quality_to_string(quality);
+                let quality_str = Self::quality_to_string(quality);
 
-            info!(
-                "New question: {} | Quality: {} | First review: {} | Reps: {}, Interval: {} days, Ease: {:.2}",
-                question_str,
-                quality_str,
-                format_time_difference(Utc::now(), next_date),
-                reps,
-                interval,
-                ease
-            );
+                info!(
+                    "New question: {} | Quality: {} | First review: {} | Reps: {}, Interval: {} days, Ease: {:.2}",
+                    question_str,
+                    quality_str,
+                    format_time_difference(Utc::now(), next_date),
+                    reps,
+                    interval,
+                    ease
+                );
 
-            review_item.repetitions = reps;
-            review_item.interval = interval;
-            review_item.ease_factor = ease;
-            review_item.next_review_date = next_date;
+                review_item.repetitions = reps;
+                review_item.interval = interval;
+                review_item.ease_factor = ease;
+                review_item.next_review_date = next_date;
 
-            let _ = self.db.insert_review_item(operation_id, next_date);
-            let _ = self.db.update_review_item(&review_item);
+                let _ = self.db.insert_review_item(operation_id, next_date);
+                let _ = self.db.update_review_item(&review_item);
 
-            // Update the result with grade and next review date
-            updated_result.grade = Some(quality);
-            updated_result.next_review_date = Some(next_date);
+                // Update the result with grade and next review date
+                updated_result.grade = Some(quality);
+                updated_result.next_review_date = Some(next_date);
+            }
         }
 
         updated_result
@@ -256,27 +259,27 @@ impl QuizService {
             info!("Found {} review question(s) due for practice", num_due);
 
             for (idx, review_item) in due_reviews.iter().enumerate() {
-                if let Ok(Some(op_record)) = self.db.get_operation(review_item.operation_id)
-                    && let Some(op_type) = OperationType::from_str(&op_record.operation_type)
-                {
-                    let mut operation =
-                        Operation::new(op_type, op_record.operand1, op_record.operand2);
-                    operation.id = Some(op_record.id);
+                if let Ok(Some(op_record)) = self.db.get_operation(review_item.operation_id) {
+                    if let Some(op_type) = OperationType::from_str(&op_record.operation_type) {
+                        let mut operation =
+                            Operation::new(op_type, op_record.operand1, op_record.operand2);
+                        operation.id = Some(op_record.id);
 
-                    if idx == 0 {
-                        info!(
-                            "First review question: {} {} {} = {} (Reps: {}, Current interval: {} days, Ease: {:.2})",
-                            op_record.operand1,
-                            operation.operation_type.symbol(),
-                            op_record.operand2,
-                            op_record.result,
-                            review_item.repetitions,
-                            review_item.interval,
-                            review_item.ease_factor
-                        );
+                        if idx == 0 {
+                            info!(
+                                "First review question: {} {} {} = {} (Reps: {}, Current interval: {} days, Ease: {:.2})",
+                                op_record.operand1,
+                                operation.operation_type.symbol(),
+                                op_record.operand2,
+                                op_record.result,
+                                review_item.repetitions,
+                                review_item.interval,
+                                review_item.ease_factor
+                            );
+                        }
+
+                        questions.push(operation);
                     }
-
-                    questions.push(operation);
                 }
             }
         }
