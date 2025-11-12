@@ -9,8 +9,8 @@ use std::sync::Arc;
 pub struct DatabaseConfig {
     /// Whether to use in-memory database
     pub is_test_mode: bool,
-    /// Custom database file path
-    pub custom_path: Option<String>,
+    /// Database file path
+    pub db_path: Option<String>,
     /// Current date for the database (always injected, from CLI or today's date)
     pub current_date: NaiveDate,
 }
@@ -24,7 +24,7 @@ impl Default for DatabaseConfig {
 /// Builder for DatabaseConfig with fluent API
 pub struct DatabaseConfigBuilder {
     is_test_mode: bool,
-    custom_path: Option<String>,
+    db_path: Option<String>,
     current_date: NaiveDate,
 }
 
@@ -32,7 +32,7 @@ impl DatabaseConfigBuilder {
     fn default() -> DatabaseConfigBuilder {
         DatabaseConfigBuilder{
             is_test_mode: false,
-            custom_path: None,
+            db_path: None,
             current_date:  Utc::now().naive_local().date()
         }
     }
@@ -47,7 +47,7 @@ impl DatabaseConfigBuilder {
 
     /// Set the database path
     pub fn path(mut self, path: Option<&str>) -> Self {
-        self.custom_path = path.map(|p| p.to_string());
+        self.db_path = path.map(|p| p.to_string());
         self
     }
 
@@ -65,7 +65,7 @@ impl DatabaseConfigBuilder {
     pub fn build(self) -> DatabaseConfig {
         DatabaseConfig {
             is_test_mode: self.is_test_mode,
-            custom_path: self.custom_path,
+            db_path: self.db_path,
             current_date: self.current_date,
         }
     }
@@ -80,18 +80,18 @@ impl DatabaseConfig {
     /// Gets the effective database path
     ///
     /// Priority:
-    /// 1. If custom_path is ":mem:" or "memory", use in-memory database
-    /// 2. If custom_path is provided, use that path
+    /// 1. If db_path is ":mem:" or "memory", use in-memory database
+    /// 2. If db_path is provided, use that path
     /// 3. If is_test_mode is true, use in-memory database
     /// 4. Otherwise, use default "memory_practice.db"
     pub fn get_path(&self) -> String {
-        // Check if custom path is provided
-        if let Some(ref path) = self.custom_path {
-            // Check if custom path explicitly requests in-memory database
+        // Check if database path is provided
+        if let Some(ref path) = self.db_path {
+            // Check if database path explicitly requests in-memory database
             if path == ":mem:" || path == "memory" {
                 ":memory:".to_string()
             } else {
-                // Use the custom path as provided
+                // Use the database path as provided
                 path.clone()
             }
         } else if self.is_test_mode {
@@ -138,7 +138,7 @@ impl DatabaseFactory {
 
         DatabaseConfig {
             is_test_mode: args.test,
-            custom_path: args.db_path.as_ref().map(|p| p.to_string_lossy().to_string()),
+            db_path: args.db_path.as_ref().map(|p| p.to_string_lossy().to_string()),
             current_date,
         }
     }
