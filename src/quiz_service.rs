@@ -289,7 +289,7 @@ impl QuizService {
                     && let Some(op_type) = OperationType::from_str(&op_record.operation_type)
                 {
                     let mut operation =
-                        Operation::new(op_type, op_record.operand1, op_record.operand2);
+                        Operation::new(op_type.clone(), op_record.operand1, op_record.operand2);
                     operation.id = Some(op_record.id);
 
                     if idx == 0 {
