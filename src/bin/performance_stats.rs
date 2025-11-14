@@ -1,5 +1,6 @@
 use chrono::Utc;
 use clap::Parser;
+use colored::Colorize;
 use memory_practice::database::analytics::{
     AccuracyRepository, StreakRepository, TimeStatisticsRepository,
 };
@@ -18,11 +19,16 @@ struct Args {
         help = "Path to the SQLite database file"
     )]
     database_file: PathBuf,
+
+    /// Disable colored output
+    #[arg(long, help = "Disable colored output")]
+    no_color: bool,
 }
 
 fn main() {
     let args = Args::parse();
     let db_path = args.database_file.to_string_lossy();
+    let use_color = !args.no_color;
 
     let db = match Database::new(&db_path) {
         Ok(db) => db,
@@ -123,19 +129,41 @@ fn main() {
         .get_missing_days(10, now)
         .unwrap_or_default();
 
-    println!("Performance Analysis Report");
+    let header = if use_color {
+        "Performance Analysis Report".cyan().bold().to_string()
+    } else {
+        "Performance Analysis Report".to_string()
+    };
+    println!("{}", header);
     println!("===========================");
     println!();
-    println!("Consecutive Days Streak: {} days", consecutive_days_streak);
+    let streak_label = if use_color {
+        "Consecutive Days Streak:".yellow().to_string()
+    } else {
+        "Consecutive Days Streak:".to_string()
+    };
+    println!("{} {} days", streak_label, consecutive_days_streak);
     if !days_with_answers.is_empty() {
+        let days_label = if use_color {
+            "Days with answers (last 10 days):".green().to_string()
+        } else {
+            "Days with answers (last 10 days):".to_string()
+        };
         println!(
-            "Days with answers (last 10 days): {}",
+            "{} {}",
+            days_label,
             days_with_answers.join(", ")
         );
     }
     if !missing_days.is_empty() {
+        let missing_label = if use_color {
+            "Days without answers (last 10 days):".red().to_string()
+        } else {
+            "Days without answers (last 10 days):".to_string()
+        };
         println!(
-            "Days without answers (last 10 days): {}",
+            "{} {}",
+            missing_label,
             missing_days.join(", ")
         );
     }
@@ -146,7 +174,12 @@ fn main() {
     operation_types.sort();
 
     for op_type in operation_types {
-        println!("Operation Type: {}", op_type);
+        let op_label = if use_color {
+            format!("Operation Type: {}", op_type.magenta().bold())
+        } else {
+            format!("Operation Type: {}", op_type)
+        };
+        println!("{}", op_label);
         println!("{}", "-".repeat(60));
 
         // Look up statistics for this operation type
@@ -159,31 +192,42 @@ fn main() {
         let last_10_accuracy = last_10_decks_accuracy_stats.get(&op_type).copied();
 
         // Print completion stats
-        println!("Completed Operations:");
-        print_accuracy_stats("Global (all time)", &global_accuracy);
-        print_accuracy_stats("Last 30 days", &last_30_accuracy);
-        print_accuracy_stats("Last 10 decks", &last_10_accuracy);
+        let completion_label = if use_color {
+            "Completed Operations:".blue().bold().to_string()
+        } else {
+            "Completed Operations:".to_string()
+        };
+        println!("{}", completion_label);
+        print_accuracy_stats("Global (all time)", &global_accuracy, use_color);
+        print_accuracy_stats("Last 30 days", &last_30_accuracy, use_color);
+        print_accuracy_stats("Last 10 decks", &last_10_accuracy, use_color);
 
         println!();
-        println!("Time Statistics (in seconds):");
+        let time_label = if use_color {
+            "Time Statistics (in seconds):".blue().bold().to_string()
+        } else {
+            "Time Statistics (in seconds):".to_string()
+        };
+        println!("{}", time_label);
 
         // Print global stats
-        print_stats("Global (all time)", &global);
+        print_stats("Global (all time)", &global, use_color);
 
         // Print last 30 days stats
         if let (Some(global_eval), Some(last_30_eval)) = (global, last_30) {
             if stats_are_same(&global_eval, &last_30_eval) {
                 println!("  Last 30 days - Same data");
             } else {
-                print_stats("Last 30 days", &Some(last_30_eval));
+                print_stats("Last 30 days", &Some(last_30_eval), use_color);
                 print_improvement(
                     global_eval.average,
                     last_30_eval.average,
                     "Last 30 days vs Global",
+                    use_color,
                 );
             }
         } else {
-            print_stats("Last 30 days", &last_30);
+            print_stats("Last 30 days", &last_30, use_color);
         }
 
         // Print last 10 decks stats
@@ -191,15 +235,16 @@ fn main() {
             if stats_are_same(&global_eval, &last_10_eval) {
                 println!("  Last 10 decks - Same data");
             } else {
-                print_stats("Last 10 decks", &Some(last_10_eval));
+                print_stats("Last 10 decks", &Some(last_10_eval), use_color);
                 print_improvement(
                     global_eval.average,
                     last_10_eval.average,
                     "Last 10 decks vs Global",
+                    use_color,
                 );
             }
         } else {
-            print_stats("Last 10 decks", &last_10);
+            print_stats("Last 10 decks", &last_10, use_color);
         }
 
         // Compare last 30 days vs last 10 decks
@@ -210,6 +255,7 @@ fn main() {
                 last_30_eval.average,
                 last_10_eval.average,
                 "Last 10 decks vs Last 30 days",
+                use_color,
             );
         }
 
@@ -218,17 +264,27 @@ fn main() {
 
     // Print overall accuracy statistics
     println!();
-    println!("Overall Accuracy Statistics");
+    let overall_label = if use_color {
+        "Overall Accuracy Statistics".cyan().bold().to_string()
+    } else {
+        "Overall Accuracy Statistics".to_string()
+    };
+    println!("{}", overall_label);
     println!("===========================");
     println!();
-    println!("Total Completed Operations:");
-    print_accuracy_stats("Global (all time)", &Some(total_accuracy));
+    let total_label = if use_color {
+        "Total Completed Operations:".blue().bold().to_string()
+    } else {
+        "Total Completed Operations:".to_string()
+    };
+    println!("{}", total_label);
+    print_accuracy_stats("Global (all time)", &Some(total_accuracy), use_color);
     if total_accuracy_last_30_days.1 > 0 {
         // Check if data is the same
         if total_accuracy == total_accuracy_last_30_days {
             println!("  Last 30 days - Same data");
         } else {
-            print_accuracy_stats("Last 30 days", &Some(total_accuracy_last_30_days));
+            print_accuracy_stats("Last 30 days", &Some(total_accuracy_last_30_days), use_color);
         }
     }
     if total_accuracy_last_10_decks.1 > 0 {
@@ -236,19 +292,29 @@ fn main() {
         if total_accuracy == total_accuracy_last_10_decks {
             println!("  Last 10 decks - Same data");
         } else {
-            print_accuracy_stats("Last 10 decks", &Some(total_accuracy_last_10_decks));
+            print_accuracy_stats("Last 10 decks", &Some(total_accuracy_last_10_decks), use_color);
         }
     }
 }
 
 /// Print statistics for a given time period
-fn print_stats(label: &str, stats: &Option<AnswerTimedEvaluator>) {
+fn print_stats(label: &str, stats: &Option<AnswerTimedEvaluator>, use_color: bool) {
     match stats {
         Some(eval) => {
-            println!(
-                "  {} - Average: {:.2}s, Std Dev: {:.2}s",
-                label, eval.average, eval.standard_deviation
-            );
+            if use_color {
+                let label_colored = label.cyan();
+                let average_colored = format!("{:.2}s", eval.average).green();
+                let std_dev_colored = format!("{:.2}s", eval.standard_deviation).yellow();
+                println!(
+                    "  {} - Average: {}, Std Dev: {}",
+                    label_colored, average_colored, std_dev_colored
+                );
+            } else {
+                println!(
+                    "  {} - Average: {:.2}s, Std Dev: {:.2}s",
+                    label, eval.average, eval.standard_deviation
+                );
+            }
         }
         None => {
             println!("  {} - No data available", label);
@@ -257,13 +323,29 @@ fn print_stats(label: &str, stats: &Option<AnswerTimedEvaluator>) {
 }
 
 /// Print accuracy statistics
-fn print_accuracy_stats(label: &str, stats: &Option<(i64, i64, f64)>) {
+fn print_accuracy_stats(label: &str, stats: &Option<(i64, i64, f64)>, use_color: bool) {
     match stats {
         Some((correct, total, accuracy)) => {
-            println!(
-                "  {} - {}/{} correct ({:.1}%)",
-                label, correct, total, accuracy
-            );
+            if use_color {
+                let label_colored = label.cyan();
+                let accuracy_percent = format!("{:.1}%", accuracy);
+                let accuracy_colored = if *accuracy >= 90.0 {
+                    accuracy_percent.green()
+                } else if *accuracy >= 75.0 {
+                    accuracy_percent.yellow()
+                } else {
+                    accuracy_percent.red()
+                };
+                println!(
+                    "  {} - {}/{} correct ({})",
+                    label_colored, correct, total, accuracy_colored
+                );
+            } else {
+                println!(
+                    "  {} - {}/{} correct ({:.1}%)",
+                    label, correct, total, accuracy
+                );
+            }
         }
         None => {
             println!("  {} - No data available", label);
@@ -279,20 +361,38 @@ fn stats_are_same(eval1: &AnswerTimedEvaluator, eval2: &AnswerTimedEvaluator) ->
 }
 
 /// Print improvement (or decline) between two average times
-fn print_improvement(from_avg: f64, to_avg: f64, label: &str) {
+fn print_improvement(from_avg: f64, to_avg: f64, label: &str, use_color: bool) {
     let improvement = from_avg - to_avg;
     let improvement_percent = (improvement / from_avg) * 100.0;
 
     if improvement > 0.001 {
-        println!(
-            "    ✓ {} - Improvement: {:.2}s ({:.1}%) faster",
-            label, improvement, improvement_percent
-        );
+        if use_color {
+            let label_colored = label.cyan();
+            let improvement_colored = format!("{:.2}s ({:.1}%)", improvement, improvement_percent).green();
+            println!(
+                "    ✓ {} - Improvement: {} faster",
+                label_colored, improvement_colored
+            );
+        } else {
+            println!(
+                "    ✓ {} - Improvement: {:.2}s ({:.1}%) faster",
+                label, improvement, improvement_percent
+            );
+        }
     } else if improvement < -0.001 {
-        println!(
-            "    ✗ {} - Decline: {:.2}s ({:.1}%) slower",
-            label, -improvement, -improvement_percent
-        );
+        if use_color {
+            let label_colored = label.cyan();
+            let decline_colored = format!("{:.2}s ({:.1}%)", -improvement, -improvement_percent).red();
+            println!(
+                "    ✗ {} - Decline: {} slower",
+                label_colored, decline_colored
+            );
+        } else {
+            println!(
+                "    ✗ {} - Decline: {:.2}s ({:.1}%) slower",
+                label, -improvement, -improvement_percent
+            );
+        }
     } else {
         println!("    • {} - No significant change", label);
     }
