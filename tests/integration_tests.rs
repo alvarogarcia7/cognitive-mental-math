@@ -1,5 +1,5 @@
 use OperationType::{Addition, Multiplication};
-use memory_practice::database::{AnswersRepository, Database, OperationsRepository, operations};
+use memory_practice::database::{AnswersRepository, Database, OperationsRepository};
 use memory_practice::operations::{Operation, OperationType, generate_question_block};
 
 #[test]
