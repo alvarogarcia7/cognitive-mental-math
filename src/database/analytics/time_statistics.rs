@@ -138,13 +138,13 @@ impl<'a> TimeStatisticsRepository<'a> {
     /// Compute time statistics for all operation types in the last 30 days
     /// Returns a map of operation_type -> AnswerTimedEvaluator
     pub fn all_operations_last_30_days(&self) -> Result<HashMap<String, AnswerTimedEvaluator>> {
-        self.compute_all_operations_template(&format!("AND {}", LAST_30_DAYS_WHERE))
+        self.compute_all_operations_template(LAST_30_DAYS_WHERE)
     }
 
     /// Compute time statistics for all operation types from the last 10 completed decks
     /// Returns a map of operation_type -> AnswerTimedEvaluator
     pub fn all_operations_last_10_decks(&self) -> Result<HashMap<String, AnswerTimedEvaluator>> {
-        self.compute_all_operations_template(&format!("AND {}", LAST_10_DECKS_WHERE))
+        self.compute_all_operations_template(LAST_10_DECKS_WHERE)
     }
 }
 

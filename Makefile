@@ -77,9 +77,13 @@ clippy-fix: ## Run clippy fix
 
 .PHONY: clippy-fix
 
-check: fmt-check clippy test ## Run all checks
+check: fmt-check clippy test  test-performance-stats ## Run all checks
 	@echo "✅ All checks passed!"
 .PHONY: check
+
+test-performance-stats:
+	cargo run --bin performance_stats -- data/sample.db
+.PHONY: test-performance-stats
 
 install-pre-commit: ## Install pre-commit hooks using pre-commit framework
 	@echo "Installing pre-commit framework and hooks..."
