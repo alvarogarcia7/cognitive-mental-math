@@ -83,8 +83,11 @@ check: fmt-check clippy test ## Run all checks
 .PHONY: check
 
 test-performance-stats:
-	cargo run --bin performance_stats -- data/sample.db
-	NO_COLOR=1 cargo run --bin performance_stats -- data/sample.db
+	cargo run --bin performance_stats -- data/sample.db > tests/actual/performance_stats_output_color.txt
+	NO_COLOR=1 cargo run --bin performance_stats -- data/sample.db > tests/actual/performance_stats_output_nocolor.txt
+	diff -u tests/expected/performance_stats_output_color.txt tests/actual/performance_stats_output_color.txt
+	diff -u tests/expected/performance_stats_output_nocolor.txt tests/actual/performance_stats_output_nocolor.txt
+	echo "✅ Performance statistics test passed!"
 .PHONY: test-performance-stats
 
 install-pre-commit: ## Install pre-commit hooks using pre-commit framework
