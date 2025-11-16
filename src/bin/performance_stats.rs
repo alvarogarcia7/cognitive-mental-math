@@ -149,11 +149,7 @@ fn main() {
         } else {
             "Days with answers (last 10 days):".to_string()
         };
-        println!(
-            "{} {}",
-            days_label,
-            days_with_answers.join(", ")
-        );
+        println!("{} {}", days_label, days_with_answers.join(", "));
     }
     if !missing_days.is_empty() {
         let missing_label = if use_color {
@@ -161,11 +157,7 @@ fn main() {
         } else {
             "Days without answers (last 10 days):".to_string()
         };
-        println!(
-            "{} {}",
-            missing_label,
-            missing_days.join(", ")
-        );
+        println!("{} {}", missing_label, missing_days.join(", "));
     }
     println!();
 
@@ -284,7 +276,11 @@ fn main() {
         if total_accuracy == total_accuracy_last_30_days {
             println!("  Last 30 days - Same data");
         } else {
-            print_accuracy_stats("Last 30 days", &Some(total_accuracy_last_30_days), use_color);
+            print_accuracy_stats(
+                "Last 30 days",
+                &Some(total_accuracy_last_30_days),
+                use_color,
+            );
         }
     }
     if total_accuracy_last_10_decks.1 > 0 {
@@ -292,7 +288,11 @@ fn main() {
         if total_accuracy == total_accuracy_last_10_decks {
             println!("  Last 10 decks - Same data");
         } else {
-            print_accuracy_stats("Last 10 decks", &Some(total_accuracy_last_10_decks), use_color);
+            print_accuracy_stats(
+                "Last 10 decks",
+                &Some(total_accuracy_last_10_decks),
+                use_color,
+            );
         }
     }
 }
@@ -368,7 +368,8 @@ fn print_improvement(from_avg: f64, to_avg: f64, label: &str, use_color: bool) {
     if improvement > 0.001 {
         if use_color {
             let label_colored = label.cyan();
-            let improvement_colored = format!("{:.2}s ({:.1}%)", improvement, improvement_percent).green();
+            let improvement_colored =
+                format!("{:.2}s ({:.1}%)", improvement, improvement_percent).green();
             println!(
                 "    ✓ {} - Improvement: {} faster",
                 label_colored, improvement_colored
@@ -382,7 +383,8 @@ fn print_improvement(from_avg: f64, to_avg: f64, label: &str, use_color: bool) {
     } else if improvement < -0.001 {
         if use_color {
             let label_colored = label.cyan();
-            let decline_colored = format!("{:.2}s ({:.1}%)", -improvement, -improvement_percent).red();
+            let decline_colored =
+                format!("{:.2}s ({:.1}%)", -improvement, -improvement_percent).red();
             println!(
                 "    ✗ {} - Decline: {} slower",
                 label_colored, decline_colored

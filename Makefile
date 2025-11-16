@@ -12,6 +12,7 @@ build: ## Build the project
 test: build ## Run all tests
 	@echo "Running tests..."
 	@cargo test --quiet
+	$(MAKE) test-performance-stats
 .PHONY: test
 
 run: ## Run the application
@@ -77,7 +78,7 @@ clippy-fix: ## Run clippy fix
 
 .PHONY: clippy-fix
 
-check: fmt-check clippy test  test-performance-stats ## Run all checks
+check: fmt-check clippy test ## Run all checks
 	@echo "✅ All checks passed!"
 .PHONY: check
 
