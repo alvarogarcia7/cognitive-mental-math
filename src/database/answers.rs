@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use rusqlite::{Connection, Result, params};
 
 #[derive(Debug, PartialEq)]
@@ -11,11 +12,24 @@ pub struct AnswerRecord {
 
 pub struct AnswersRepository<'a> {
     conn: &'a Connection,
+    get_current_time: Box<dyn Fn() -> DateTime<Utc> + 'a>,
 }
 
 impl<'a> AnswersRepository<'a> {
+    pub fn new_with_date_provider(
+        conn: &'a Connection,
+        date_provider: &'a dyn Fn() -> DateTime<Utc>,
+    ) -> Self {
+        AnswersRepository {
+            conn,
+            get_current_time: Box::new(date_provider),
+        }
+    }
     pub fn new(conn: &'a Connection) -> Self {
-        AnswersRepository { conn }
+        AnswersRepository {
+            conn,
+            get_current_time: Box::new(Utc::now),
+        }
     }
 
     pub fn insert(
@@ -27,14 +41,15 @@ impl<'a> AnswersRepository<'a> {
         deck_id: Option<i64>,
     ) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO answers (operation_id, user_answer, is_correct, time_spent_seconds, deck_id)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO answers (operation_id, user_answer, is_correct, time_spent_seconds, deck_id, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 operation_id,
                 user_answer,
                 is_correct as i32,
                 time_spent_seconds,
-                deck_id
+                deck_id,
+                (self.get_current_time)().to_rfc3339(),
             ],
         )?;
         Ok(())

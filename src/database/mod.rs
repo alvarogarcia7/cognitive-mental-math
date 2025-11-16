@@ -149,18 +149,20 @@ mod tests {
     fn test_get_days_with_answers_for_given_day() {
         let db_config = DatabaseConfig::builder()
             .test_mode()
+            .path(Some(":memory:"))
             .date_ymd(2025, 11, 12)
             .build();
         let db = DatabaseFactory::create(db_config).unwrap();
         let current_time = db.get_current_time();
-        let repo = DecksRepository::new(&db.conn, Box::new(move || current_time));
-        let deck_id = repo.create().unwrap();
-        let deck_id1 = Some(deck_id);
-        let repo = OperationsRepository::new(&db.conn);
-        let op_id = repo.insert("ADD", 2, 3, 5, deck_id1).unwrap();
-        let deck_id2 = Some(deck_id);
-        let repo1 = AnswersRepository::new(&db.conn);
-        repo1.insert(op_id, 5, true, 1.0, deck_id2).unwrap();
+        let decks_repo = DecksRepository::new(&db.conn, Box::new(move || current_time));
+        let date_provider_fn = Box::new(move || current_time);
+        let answers_repo = AnswersRepository::new_with_date_provider(&db.conn, &*date_provider_fn);
+        let operations_repo = OperationsRepository::new(&db.conn);
+
+        let deck_id1 = Some(decks_repo.create().unwrap());
+        let op_id = operations_repo.insert("ADD", 2, 3, 5, deck_id1).unwrap();
+        let deck_id2 = Some(decks_repo.create().unwrap());
+        answers_repo.insert(op_id, 5, true, 1.0, deck_id2).unwrap();
 
         let now = Utc::now();
         let analytics = Analytics::new(&db.conn);
