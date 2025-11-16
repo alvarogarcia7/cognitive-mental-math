@@ -84,6 +84,7 @@ check: fmt-check clippy test ## Run all checks
 
 test-performance-stats:
 	cargo run --bin performance_stats -- data/sample.db
+	NO_COLOR=1 cargo run --bin performance_stats -- data/sample.db
 .PHONY: test-performance-stats
 
 install-pre-commit: ## Install pre-commit hooks using pre-commit framework
