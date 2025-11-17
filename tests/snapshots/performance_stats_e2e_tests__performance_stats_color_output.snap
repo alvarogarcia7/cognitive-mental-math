@@ -1,0 +1,43 @@
+---
+source: tests/performance_stats_e2e_tests.rs
+expression: stdout
+---
+Performance Analysis Report
+===========================
+
+Consecutive Days Streak: 0 days
+Days with answers (last 10 days): 2025-11-10
+Days without answers (last 10 days): 2025-11-17, 2025-11-16, 2025-11-15, 2025-11-14, 2025-11-13, 2025-11-12, 2025-11-11, 2025-11-09, 2025-11-08
+
+Operation Type: ADD
+------------------------------------------------------------
+Completed Operations:
+  Global (all time) - 2/4 correct (50.0%)
+  Last 30 days - 2/4 correct (50.0%)
+  Last 10 decks - 2/4 correct (50.0%)
+
+Time Statistics (in seconds):
+  Global (all time) - Average: 2.34s, Std Dev: 0.40s
+  Last 30 days - Same data
+  Last 10 decks - Same data
+
+Operation Type: MULTIPLY
+------------------------------------------------------------
+Completed Operations:
+  Global (all time) - 2/2 correct (100.0%)
+  Last 30 days - 2/2 correct (100.0%)
+  Last 10 decks - 2/2 correct (100.0%)
+
+Time Statistics (in seconds):
+  Global (all time) - Average: 9.21s, Std Dev: 3.22s
+  Last 30 days - Same data
+  Last 10 decks - Same data
+
+
+Overall Accuracy Statistics
+===========================
+
+Total Completed Operations:
+  Global (all time) - 4/6 correct (66.7%)
+  Last 30 days - Same data
+  Last 10 decks - Same data
