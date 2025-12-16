@@ -4,7 +4,7 @@ This is the first product of [Cognitive Mental](https://github.com/Cognitive-Men
 
 It aims to help the older population with Math operations, hence the name.
 
-We are actively developing the product with the help of Claude Code, and hopefully [Tonkatsu.ai][]
+We are actively developing the product with the help of Claude Code, and hopefully [Tonkatsu.ai](https://Tonkatsu.ai) :)
 
 ## Technical Readme
 
