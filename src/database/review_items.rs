@@ -3,7 +3,7 @@ use crate::spaced_repetition::ReviewItem;
 use crate::time_format::format_time_difference;
 use chrono::{DateTime, Utc};
 use log::debug;
-use rusqlite::{Connection, Result, params};
+use rusqlite::{params, Connection, Result};
 
 pub struct ReviewItemsRepository<'a> {
     conn: &'a Connection,
@@ -156,14 +156,18 @@ mod tests {
         let review_repo = ReviewItemsRepository::new(&conn);
 
         let op_id = ops_repo.insert("ADD", 2, 3, 5, None).unwrap();
-        let now = chrono::Utc::now();
-        review_repo.insert(op_id, now).unwrap();
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
+        review_repo.insert(op_id, fixed_date).unwrap();
 
         let mut item = review_repo.get(op_id).unwrap().unwrap();
         item.repetitions = 1;
         item.interval = 3;
         item.ease_factor = 2.7;
-        item.next_review_date = now + chrono::Duration::days(3);
+        item.next_review_date = fixed_date + chrono::Duration::days(3);
 
         review_repo.update(&item).unwrap();
 
@@ -210,19 +214,23 @@ mod tests {
         let ops_repo = OperationsRepository::new(&conn);
         let review_repo = ReviewItemsRepository::new(&conn);
 
-        let now = chrono::Utc::now();
-        let past = now - chrono::Duration::days(1);
-        let future = now + chrono::Duration::days(1);
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
+        let past = fixed_date - chrono::Duration::days(1);
+        let future = fixed_date + chrono::Duration::days(1);
 
         let op_id1 = ops_repo.insert("ADD", 2, 3, 5, None).unwrap();
         let op_id2 = ops_repo.insert("ADD", 4, 5, 9, None).unwrap();
         let op_id3 = ops_repo.insert("ADD", 6, 7, 13, None).unwrap();
 
         review_repo.insert(op_id1, past).unwrap();
-        review_repo.insert(op_id2, now).unwrap();
+        review_repo.insert(op_id2, fixed_date).unwrap();
         review_repo.insert(op_id3, future).unwrap();
 
-        let count = review_repo.count_due(now).unwrap();
+        let count = review_repo.count_due(fixed_date).unwrap();
         assert_eq!(count, 2);
     }
 
@@ -240,14 +248,18 @@ mod tests {
         let ops_repo = OperationsRepository::new(&conn);
         let review_repo = ReviewItemsRepository::new(&conn);
 
-        let now = chrono::Utc::now();
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
 
         let op_id1 = ops_repo.insert("ADD", 2, 3, 5, None).unwrap();
         let op_id2 = ops_repo.insert("MULTIPLY", 3, 4, 12, None).unwrap();
 
-        review_repo.insert(op_id1, now).unwrap();
+        review_repo.insert(op_id1, fixed_date).unwrap();
         review_repo
-            .insert(op_id2, now + chrono::Duration::days(1))
+            .insert(op_id2, fixed_date + chrono::Duration::days(1))
             .unwrap();
 
         let item1 = review_repo.get(op_id1).unwrap().unwrap();

@@ -14,7 +14,11 @@ use chrono::{DateTime, Utc};
 /// - 30 days from now: "on 2025-12-10"
 pub fn format_time_difference(now: DateTime<Utc>, future_date: DateTime<Utc>) -> String {
     fn plural_suffix(count: i64) -> &'static str {
-        if count == 1 { "" } else { "s" }
+        if count == 1 {
+            ""
+        } else {
+            "s"
+        }
     }
 
     let duration = future_date.signed_duration_since(now);

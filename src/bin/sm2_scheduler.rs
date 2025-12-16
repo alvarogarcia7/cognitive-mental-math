@@ -1,3 +1,5 @@
+#![feature(let_chains)]
+
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use memory_practice::quiz_service::QuizService;

@@ -155,8 +155,14 @@ mod tests {
     fn test_compute_accuracy_all_operations_single_type() {
         let conn = create_test_db();
         let ops_repo = OperationsRepository::new(&conn);
-        let answers_repo = AnswersRepository::new(&conn);
-        let decks_repo = DecksRepository::new(&conn, Box::new(|| chrono::Utc::now()));
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
+        let date_provider = Box::new(move || fixed_date);
+        let answers_repo = AnswersRepository::new_with_date_provider(&conn, &*date_provider);
+        let decks_repo = DecksRepository::new(&conn, Box::new(move || fixed_date));
         let accuracy_repo = AccuracyRepository::new(&conn);
 
         let deck_id = decks_repo.create().unwrap();
@@ -179,8 +185,14 @@ mod tests {
     fn test_compute_accuracy_all_operations_multiple_types() {
         let conn = create_test_db();
         let ops_repo = OperationsRepository::new(&conn);
-        let answers_repo = AnswersRepository::new(&conn);
-        let decks_repo = DecksRepository::new(&conn, Box::new(|| chrono::Utc::now()));
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
+        let date_provider = Box::new(move || fixed_date);
+        let answers_repo = AnswersRepository::new_with_date_provider(&conn, &*date_provider);
+        let decks_repo = DecksRepository::new(&conn, Box::new(move || fixed_date));
         let accuracy_repo = AccuracyRepository::new(&conn);
 
         let deck_id = decks_repo.create().unwrap();
@@ -227,8 +239,14 @@ mod tests {
     fn test_compute_total_accuracy_single_deck() {
         let conn = create_test_db();
         let ops_repo = OperationsRepository::new(&conn);
-        let answers_repo = AnswersRepository::new(&conn);
-        let decks_repo = DecksRepository::new(&conn, Box::new(|| chrono::Utc::now()));
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
+        let date_provider = Box::new(move || fixed_date);
+        let answers_repo = AnswersRepository::new_with_date_provider(&conn, &*date_provider);
+        let decks_repo = DecksRepository::new(&conn, Box::new(move || fixed_date));
         let accuracy_repo = AccuracyRepository::new(&conn);
 
         let deck_id = decks_repo.create().unwrap();

@@ -1,3 +1,5 @@
+#![feature(let_chains)]
+
 use chrono::Utc;
 use clap::Parser;
 use colored::Colorize;
