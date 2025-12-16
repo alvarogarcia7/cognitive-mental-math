@@ -1,3 +1,5 @@
+#![feature(let_chains)]
+
 use memory_practice::database_factory::DatabaseFactory;
 use memory_practice::gui;
 use std::sync::Arc;

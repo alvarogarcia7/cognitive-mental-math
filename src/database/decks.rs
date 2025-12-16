@@ -1,7 +1,7 @@
 use crate::deck::{Deck, DeckStatus, DeckSummary};
 use crate::row_factories::DeckRowFactory;
 use chrono::{DateTime, Utc};
-use rusqlite::{Connection, Result, params};
+use rusqlite::{params, Connection, Result};
 
 pub struct DecksRepository<'a> {
     conn: &'a Connection,
@@ -133,7 +133,12 @@ mod tests {
     #[test]
     fn test_get_deck() {
         let conn = create_test_db();
-        let repo = DecksRepository::new(&conn, Box::new(|| Utc::now()));
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
+        let repo = DecksRepository::new(&conn, Box::new(move || fixed_date));
         let deck_id = repo.create().unwrap();
 
         let deck = repo.get(deck_id).unwrap().unwrap();
@@ -145,7 +150,12 @@ mod tests {
     #[test]
     fn test_complete_deck() {
         let conn = create_test_db();
-        let repo = DecksRepository::new(&conn, Box::new(|| Utc::now()));
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
+        let repo = DecksRepository::new(&conn, Box::new(move || fixed_date));
         let deck_id = repo.create().unwrap();
 
         repo.complete(deck_id).unwrap();
@@ -158,7 +168,12 @@ mod tests {
     #[test]
     fn test_abandon_deck() {
         let conn = create_test_db();
-        let repo = DecksRepository::new(&conn, Box::new(|| Utc::now()));
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
+        let repo = DecksRepository::new(&conn, Box::new(move || fixed_date));
         let deck_id = repo.create().unwrap();
 
         repo.abandon(deck_id).unwrap();
@@ -196,7 +211,12 @@ mod tests {
     #[test]
     fn test_get_recent_decks() {
         let conn = create_test_db();
-        let repo = DecksRepository::new(&conn, Box::new(|| Utc::now()));
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
+        let repo = DecksRepository::new(&conn, Box::new(move || fixed_date));
         let _deck1 = repo.create().unwrap();
         let _deck2 = repo.create().unwrap();
         let _deck3 = repo.create().unwrap();

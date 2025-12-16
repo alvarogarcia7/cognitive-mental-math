@@ -1,6 +1,6 @@
-use OperationType::{Addition, Multiplication};
 use memory_practice::database::{AnswersRepository, Database, OperationsRepository};
-use memory_practice::operations::{Operation, OperationType, generate_question_block};
+use memory_practice::operations::{generate_question_block, Operation, OperationType};
+use OperationType::{Addition, Multiplication};
 
 #[test]
 fn test_store_and_retrieve_operation() {
