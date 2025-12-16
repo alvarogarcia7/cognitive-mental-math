@@ -1,4 +1,12 @@
-# Cognitive Mental Math
+# Cognitive Mental - Math
+
+This is the first product of [Cognitive Mental](https://github.com/Cognitive-Mental).
+
+It aims to help the older population with Math operations, hence the name.
+
+We are actively developing the product with the help of Claude Code, and hopefully [Tonkatsu.ai][]
+
+## Technical Readme
 
 A Rust-based GUI application to exercise and improve mental math abilities through interactive quizzes and spaced repetition learning.
 
