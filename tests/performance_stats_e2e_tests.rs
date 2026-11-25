@@ -4,12 +4,14 @@ use std::process::Command;
 #[test]
 fn test_performance_stats_with_color() {
     let output = Command::new("cargo")
-        .args(&[
+        .args([
             "run",
             "--bin",
             "performance_stats",
             "--",
             "data/sample.db",
+            "--override-date",
+            "2025-11-17",
         ])
         .output()
         .expect("Failed to execute performance_stats");
@@ -30,13 +32,15 @@ fn test_performance_stats_with_color() {
 #[test]
 fn test_performance_stats_no_color() {
     let output = Command::new("cargo")
-        .args(&[
+        .args([
             "run",
             "--bin",
             "performance_stats",
             "--",
             "data/sample.db",
             "--no-color",
+            "--override-date",
+            "2025-11-17",
         ])
         .output()
         .expect("Failed to execute performance_stats");
@@ -64,13 +68,7 @@ fn test_performance_stats_empty_db() {
     let _ = fs::remove_file(temp_db);
 
     let output = Command::new("cargo")
-        .args(&[
-            "run",
-            "--bin",
-            "performance_stats",
-            "--",
-            temp_db,
-        ])
+        .args(["run", "--bin", "performance_stats", "--", temp_db])
         .output()
         .expect("Failed to execute performance_stats");
 
@@ -95,7 +93,7 @@ fn test_performance_stats_empty_db() {
 #[test]
 fn test_performance_stats_help() {
     let output = Command::new("cargo")
-        .args(&["run", "--bin", "performance_stats", "--", "--help"])
+        .args(["run", "--bin", "performance_stats", "--", "--help"])
         .output()
         .expect("Failed to execute performance_stats");
 
