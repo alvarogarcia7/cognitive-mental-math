@@ -51,7 +51,9 @@ jobs:
       matrix:
         include:
           - label: linux-amd64
-            runner: ubuntu-latest
+            # Oldest supported Ubuntu, so the binary links against an older glibc
+            # and runs on more Linux distributions.
+            runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
           - label: mac-arm64
             runner: macos-latest
