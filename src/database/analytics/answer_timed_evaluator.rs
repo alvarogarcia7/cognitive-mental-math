@@ -1,10 +1,18 @@
 use crate::spaced_repetition::AnswerTimedEvaluator;
+use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use rusqlite::Result;
 use std::collections::HashMap;
 
+/// SQL WHERE clause for answers in the 30 days before `now`.
+/// The cutoff is derived from `now` (not the SQLite clock) so results are reproducible,
+/// and it uses the same `YYYY-MM-DD HH:MM:SS` format as SQLite's datetime().
+fn last_30_days_where(now: DateTime<Utc>) -> String {
+    let cutoff = (now - chrono::Duration::days(30)).format("%Y-%m-%d %H:%M:%S");
+    format!("a.created_at >= '{}'", cutoff)
+}
+
 // SQL WHERE clause constants for template method filters
-const LAST_30_DAYS_WHERE: &str = "a.created_at >= datetime('now', '-30 days')";
 const LAST_10_DECKS_WHERE: &str = r#"d.id IN (
     SELECT id FROM decks
     WHERE status = 'completed'
@@ -12,13 +20,13 @@ const LAST_10_DECKS_WHERE: &str = r#"d.id IN (
     LIMIT 10
 )"#;
 
-pub struct TimeStatisticsRepository<'a> {
+pub struct AnswerTimedEvaluatorRepository<'a> {
     conn: &'a Connection,
 }
 
-impl<'a> TimeStatisticsRepository<'a> {
+impl<'a> AnswerTimedEvaluatorRepository<'a> {
     pub fn new(conn: &'a Connection) -> Self {
-        TimeStatisticsRepository { conn }
+        AnswerTimedEvaluatorRepository { conn }
     }
 
     /// Compute time statistics for correct answers of a specific operation type
@@ -135,10 +143,13 @@ impl<'a> TimeStatisticsRepository<'a> {
         self.compute_all_operations_template("")
     }
 
-    /// Compute time statistics for all operation types in the last 30 days
+    /// Compute time statistics for all operation types in the last 30 days (relative to `now`)
     /// Returns a map of operation_type -> AnswerTimedEvaluator
-    pub fn all_operations_last_30_days(&self) -> Result<HashMap<String, AnswerTimedEvaluator>> {
-        self.compute_all_operations_template(LAST_30_DAYS_WHERE)
+    pub fn all_operations_last_30_days(
+        &self,
+        now: DateTime<Utc>,
+    ) -> Result<HashMap<String, AnswerTimedEvaluator>> {
+        self.compute_all_operations_template(&last_30_days_where(now))
     }
 
     /// Compute time statistics for all operation types from the last 10 completed decks
@@ -161,20 +172,26 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_time_statistics_empty_database() {
+    fn test_compute_answer_timed_evaluator_empty_database() {
         let conn = create_test_db();
-        let repo = TimeStatisticsRepository::new(&conn);
+        let repo = AnswerTimedEvaluatorRepository::new(&conn);
         let result = repo.for_operation_type("ADD").unwrap();
         assert!(result.is_none());
     }
 
     #[test]
-    fn test_compute_time_statistics_single_answer() {
+    fn test_compute_answer_timed_evaluator_single_answer() {
         let conn = create_test_db();
         let ops_repo = OperationsRepository::new(&conn);
-        let answers_repo = AnswersRepository::new(&conn);
-        let decks_repo = DecksRepository::new(&conn, Box::new(|| chrono::Utc::now()));
-        let time_stats_repo = TimeStatisticsRepository::new(&conn);
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
+        let date_provider = Box::new(move || fixed_date);
+        let answers_repo = AnswersRepository::new_with_date_provider(&conn, &*date_provider);
+        let decks_repo = DecksRepository::new(&conn, Box::new(move || fixed_date));
+        let time_stats_repo = AnswerTimedEvaluatorRepository::new(&conn);
 
         let deck_id = decks_repo.create().unwrap();
         let op_id = ops_repo.insert("ADD", 2, 3, 5, Some(deck_id)).unwrap();
@@ -192,20 +209,26 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_time_statistics_all_operations_empty_database() {
+    fn test_compute_answer_timed_evaluator_all_operations_empty_database() {
         let conn = create_test_db();
-        let repo = TimeStatisticsRepository::new(&conn);
+        let repo = AnswerTimedEvaluatorRepository::new(&conn);
         let result = repo.all_operations().unwrap();
         assert!(result.is_empty());
     }
 
     #[test]
-    fn test_compute_time_statistics_all_operations_multiple_types() {
+    fn test_compute_answer_timed_evaluator_all_operations_multiple_types() {
         let conn = create_test_db();
         let ops_repo = OperationsRepository::new(&conn);
-        let answers_repo = AnswersRepository::new(&conn);
-        let decks_repo = DecksRepository::new(&conn, Box::new(|| chrono::Utc::now()));
-        let time_stats_repo = TimeStatisticsRepository::new(&conn);
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
+        let date_provider = Box::new(move || fixed_date);
+        let answers_repo = AnswersRepository::new_with_date_provider(&conn, &*date_provider);
+        let decks_repo = DecksRepository::new(&conn, Box::new(move || fixed_date));
+        let time_stats_repo = AnswerTimedEvaluatorRepository::new(&conn);
 
         let deck_id = decks_repo.create().unwrap();
 

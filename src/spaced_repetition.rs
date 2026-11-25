@@ -163,12 +163,13 @@ mod tests {
         assert!(matches!(quality, Quality::Grade3));
     }
 
+    // `default()` is intentional here: it exercises the `Default` impl itself.
+    #[allow(clippy::default_constructed_unit_structs)]
     #[test]
     fn test_review_scheduler_creation() {
         let _scheduler = ReviewScheduler::new();
         let _default_scheduler = ReviewScheduler::default();
-        // Just verify they can be created
-        assert!(true);
+        // Reaching this point without panicking verifies both constructors work.
     }
 
     #[test]
@@ -195,13 +196,18 @@ mod tests {
     #[test]
     fn test_review_scheduler_process_difficult() {
         let scheduler = ReviewScheduler::new();
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
         let item = ReviewItem {
             id: Some(1),
             operation_id: 1,
             repetitions: 0,
             interval: 0,
             ease_factor: 2.5,
-            next_review_date: Utc::now(),
+            next_review_date: fixed_date,
             last_reviewed_date: None,
         };
 
@@ -234,6 +240,11 @@ mod tests {
     #[test]
     fn test_review_scheduler_multiple_sequential_reviews() {
         let scheduler = ReviewScheduler::new();
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
 
         // First review - correct (Grade5)
         let mut item = ReviewItem {
@@ -242,7 +253,7 @@ mod tests {
             repetitions: 0,
             interval: 0,
             ease_factor: 2.5,
-            next_review_date: Utc::now(),
+            next_review_date: fixed_date,
             last_reviewed_date: None,
         };
 
@@ -265,6 +276,11 @@ mod tests {
     #[test]
     fn test_review_scheduler_ease_factor_degrades_with_poor_quality() {
         let scheduler = ReviewScheduler::new();
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
 
         let mut item = ReviewItem {
             id: Some(1),
@@ -272,7 +288,7 @@ mod tests {
             repetitions: 0,
             interval: 0,
             ease_factor: 2.5,
-            next_review_date: Utc::now(),
+            next_review_date: fixed_date,
             last_reviewed_date: None,
         };
 
@@ -292,7 +308,11 @@ mod tests {
     #[test]
     fn test_review_scheduler_next_date_increases_with_interval() {
         let scheduler = ReviewScheduler::new();
-        let now = Utc::now();
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
 
         let mut item = ReviewItem {
             id: Some(1),
@@ -300,7 +320,7 @@ mod tests {
             repetitions: 0,
             interval: 0,
             ease_factor: 2.5,
-            next_review_date: now,
+            next_review_date: fixed_date,
             last_reviewed_date: None,
         };
 
@@ -317,7 +337,7 @@ mod tests {
 
         // Next review dates should be progressively further in the future
         assert!(next_date2 > next_date1);
-        assert!(next_date1 > now);
+        assert!(next_date1 > fixed_date);
     }
 
     #[test]
@@ -353,14 +373,19 @@ mod tests {
 
     #[test]
     fn test_review_item_equality_and_cloning() {
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
         let item1 = ReviewItem {
             id: Some(1),
             operation_id: 42,
             repetitions: 3,
             interval: 7,
             ease_factor: 2.6,
-            next_review_date: Utc::now(),
-            last_reviewed_date: Some(Utc::now()),
+            next_review_date: fixed_date,
+            last_reviewed_date: Some(fixed_date),
         };
 
         let item2 = item1.clone();
@@ -370,17 +395,24 @@ mod tests {
         assert_eq!(item1.interval, item2.interval);
     }
 
+    // `default()` is intentional here: the test asserts Default matches new().
+    #[allow(clippy::default_constructed_unit_structs)]
     #[test]
     fn test_review_scheduler_default_is_new() {
         let default_scheduler = ReviewScheduler::default();
         let new_scheduler = ReviewScheduler::new();
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
         let item = ReviewItem {
             id: Some(1),
             operation_id: 1,
             repetitions: 0,
             interval: 0,
             ease_factor: 2.5,
-            next_review_date: Utc::now(),
+            next_review_date: fixed_date,
             last_reviewed_date: None,
         };
 

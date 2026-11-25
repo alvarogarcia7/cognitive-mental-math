@@ -13,8 +13,9 @@ impl<'a> StreakRepository<'a> {
     }
 
     /// Calculate the number of consecutive days the user has completed answers
+    /// `now` is the reference time used to decide whether the streak is still alive.
     /// Returns the streak count (0 if no answers exist)
-    pub fn calculate_consecutive_days(&self) -> Result<i32> {
+    pub fn calculate_consecutive_days(&self, now: DateTime<Utc>) -> Result<i32> {
         // Get all unique dates when answers were completed, ordered by date descending
         let mut stmt = self.conn.prepare(
             r#"SELECT DISTINCT DATE(a.created_at) as answer_date
@@ -35,8 +36,8 @@ impl<'a> StreakRepository<'a> {
         let mut current_date_idx = 0;
 
         // Get today's date and yesterday's date to handle cases where last activity wasn't today
-        let today = Utc::now().format("%Y-%m-%d").to_string();
-        let yesterday = (Utc::now() - chrono::Duration::days(1))
+        let today = now.format("%Y-%m-%d").to_string();
+        let yesterday = (now - chrono::Duration::days(1))
             .format("%Y-%m-%d")
             .to_string();
 
@@ -159,7 +160,7 @@ mod tests {
     fn test_consecutive_days_streak_no_answers() {
         let conn = create_test_db();
         let streak_repo = StreakRepository::new(&conn);
-        let streak = streak_repo.calculate_consecutive_days().unwrap();
+        let streak = streak_repo.calculate_consecutive_days(Utc::now()).unwrap();
         assert_eq!(streak, 0);
     }
 
@@ -167,8 +168,10 @@ mod tests {
     fn test_consecutive_days_streak_single_day() {
         let conn = create_test_db();
         let ops_repo = OperationsRepository::new(&conn);
-        let answers_repo = AnswersRepository::new(&conn);
-        let decks_repo = DecksRepository::new(&conn, Box::new(|| Utc::now()));
+        let fixed_date = Utc::now();
+        let date_provider = Box::new(move || fixed_date);
+        let answers_repo = AnswersRepository::new_with_date_provider(&conn, &*date_provider);
+        let decks_repo = DecksRepository::new(&conn, Box::new(move || fixed_date));
         let streak_repo = StreakRepository::new(&conn);
 
         let deck_id = decks_repo.create().unwrap();
@@ -178,7 +181,7 @@ mod tests {
             .unwrap();
         decks_repo.complete(deck_id).unwrap();
 
-        let streak = streak_repo.calculate_consecutive_days().unwrap();
+        let streak = streak_repo.calculate_consecutive_days(fixed_date).unwrap();
         assert_eq!(streak, 1);
     }
 
@@ -186,8 +189,13 @@ mod tests {
     fn test_get_days_with_answers_empty() {
         let conn = create_test_db();
         let streak_repo = StreakRepository::new(&conn);
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
         // No answers in the database
-        let days_with_answers = streak_repo.get_days_with_answers(Utc::now()).unwrap();
+        let days_with_answers = streak_repo.get_days_with_answers(fixed_date).unwrap();
         assert_eq!(days_with_answers.len(), 0);
     }
 
@@ -195,8 +203,14 @@ mod tests {
     fn test_get_days_with_answers_with_recent_answer() {
         let conn = create_test_db();
         let ops_repo = OperationsRepository::new(&conn);
-        let answers_repo = AnswersRepository::new(&conn);
-        let decks_repo = DecksRepository::new(&conn, Box::new(|| Utc::now()));
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
+        let date_provider = Box::new(move || fixed_date);
+        let answers_repo = AnswersRepository::new_with_date_provider(&conn, &*date_provider);
+        let decks_repo = DecksRepository::new(&conn, Box::new(move || fixed_date));
         let streak_repo = StreakRepository::new(&conn);
 
         let deck_id = decks_repo.create().unwrap();
@@ -206,7 +220,7 @@ mod tests {
             .unwrap();
 
         // With one recent answer today, there should be 1 day with answers
-        let days_with_answers = streak_repo.get_days_with_answers(Utc::now()).unwrap();
+        let days_with_answers = streak_repo.get_days_with_answers(fixed_date).unwrap();
         assert_eq!(days_with_answers.len(), 1);
     }
 
@@ -214,8 +228,13 @@ mod tests {
     fn test_get_missing_days_in_streak_empty() {
         let conn = create_test_db();
         let streak_repo = StreakRepository::new(&conn);
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
         // No answers in the database
-        let missing_days = streak_repo.get_missing_days(10, Utc::now()).unwrap();
+        let missing_days = streak_repo.get_missing_days(10, fixed_date).unwrap();
         // All days in the last 10 days should be missing since there are no answers
         // (exactly 10 days: today + 9 days back)
         assert_eq!(missing_days.len(), 10);
@@ -225,8 +244,14 @@ mod tests {
     fn test_get_missing_days_in_streak_with_recent_answer() {
         let conn = create_test_db();
         let ops_repo = OperationsRepository::new(&conn);
-        let answers_repo = AnswersRepository::new(&conn);
-        let decks_repo = DecksRepository::new(&conn, Box::new(|| Utc::now()));
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
+        let date_provider = Box::new(move || fixed_date);
+        let answers_repo = AnswersRepository::new_with_date_provider(&conn, &*date_provider);
+        let decks_repo = DecksRepository::new(&conn, Box::new(move || fixed_date));
         let streak_repo = StreakRepository::new(&conn);
 
         let deck_id = decks_repo.create().unwrap();
@@ -236,7 +261,7 @@ mod tests {
             .unwrap();
 
         // With one recent answer today, there should be 9 missing days in the last 10
-        let missing_days = streak_repo.get_missing_days(10, Utc::now()).unwrap();
+        let missing_days = streak_repo.get_missing_days(10, fixed_date).unwrap();
         // Should have 9 missing days (1 day has answer, 9 other days don't)
         assert_eq!(missing_days.len(), 9);
     }
@@ -245,8 +270,14 @@ mod tests {
     fn test_get_missing_days_ignores_max_days_parameter() {
         let conn = create_test_db();
         let ops_repo = OperationsRepository::new(&conn);
-        let answers_repo = AnswersRepository::new(&conn);
-        let decks_repo = DecksRepository::new(&conn, Box::new(|| Utc::now()));
+        let fixed_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
+        let date_provider = Box::new(move || fixed_date);
+        let answers_repo = AnswersRepository::new_with_date_provider(&conn, &*date_provider);
+        let decks_repo = DecksRepository::new(&conn, Box::new(move || fixed_date));
         let streak_repo = StreakRepository::new(&conn);
 
         let deck_id = decks_repo.create().unwrap();
@@ -256,10 +287,9 @@ mod tests {
             .unwrap();
 
         // Test with different max_days values - should always return 10 days worth of data
-        let now = Utc::now();
-        let missing_5 = streak_repo.get_missing_days(5, now).unwrap();
-        let missing_10 = streak_repo.get_missing_days(10, now).unwrap();
-        let missing_20 = streak_repo.get_missing_days(20, now).unwrap();
+        let missing_5 = streak_repo.get_missing_days(5, fixed_date).unwrap();
+        let missing_10 = streak_repo.get_missing_days(10, fixed_date).unwrap();
+        let missing_20 = streak_repo.get_missing_days(20, fixed_date).unwrap();
 
         // All should return 10 days of data (today + 9 days back) minus days with answers
         // Since we have 1 answer today, each should have 9 missing days

@@ -1,8 +1,8 @@
-use chrono::Utc;
+use chrono::{DateTime, NaiveDate, Utc};
 use clap::Parser;
 use colored::Colorize;
 use memory_practice::database::analytics::{
-    AccuracyRepository, StreakRepository, TimeStatisticsRepository,
+    AccuracyRepository, AnswerTimedEvaluatorRepository, StreakRepository,
 };
 use memory_practice::database::{Analytics, Database};
 use memory_practice::spaced_repetition::AnswerTimedEvaluator;
@@ -23,12 +23,29 @@ struct Args {
     /// Disable colored output
     #[arg(long, help = "Disable colored output")]
     no_color: bool,
+
+    /// Pin the reference date (YYYY-MM-DD) used for the streak and "last 10 days" lists
+    #[arg(
+        long,
+        value_name = "YYYY-MM-DD",
+        help = "Use this date instead of today (for reproducible output)"
+    )]
+    override_date: Option<NaiveDate>,
+}
+
+/// Resolve the reference time: the overridden date at midday UTC, or the current time
+fn reference_time(override_date: Option<NaiveDate>) -> DateTime<Utc> {
+    match override_date.and_then(|d| d.and_hms_opt(12, 0, 0)) {
+        Some(naive) => naive.and_utc(),
+        None => Utc::now(),
+    }
 }
 
 fn main() {
     let args = Args::parse();
     let db_path = args.database_file.to_string_lossy();
     let use_color = !args.no_color;
+    let now = reference_time(args.override_date);
 
     let db = match Database::new(&db_path) {
         Ok(db) => db,
@@ -40,7 +57,7 @@ fn main() {
 
     // Fetch all statistics in 3 database queries (one per time period)
     let analytics = Analytics::new(&db.conn);
-    let global_stats = match TimeStatisticsRepository::new(analytics.conn).all_operations() {
+    let global_stats = match AnswerTimedEvaluatorRepository::new(analytics.conn).all_operations() {
         Ok(stats) => stats,
         Err(e) => {
             eprintln!("Error fetching global statistics: {}", e);
@@ -53,17 +70,18 @@ fn main() {
         return;
     }
 
-    let last_30_days_stats =
-        match TimeStatisticsRepository::new(analytics.conn).all_operations_last_30_days() {
-            Ok(stats) => stats,
-            Err(e) => {
-                eprintln!("Error fetching last 30 days statistics: {}", e);
-                std::process::exit(1);
-            }
-        };
+    let last_30_days_stats = match AnswerTimedEvaluatorRepository::new(analytics.conn)
+        .all_operations_last_30_days(now)
+    {
+        Ok(stats) => stats,
+        Err(e) => {
+            eprintln!("Error fetching last 30 days statistics: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     let last_10_decks_stats =
-        match TimeStatisticsRepository::new(analytics.conn).all_operations_last_10_decks() {
+        match AnswerTimedEvaluatorRepository::new(analytics.conn).all_operations_last_10_decks() {
             Ok(stats) => stats,
             Err(e) => {
                 eprintln!("Error fetching last 10 decks statistics: {}", e);
@@ -81,7 +99,7 @@ fn main() {
     };
 
     let last_30_days_accuracy_stats =
-        match AccuracyRepository::new(analytics.conn).all_operations_last_30_days() {
+        match AccuracyRepository::new(analytics.conn).all_operations_last_30_days(now) {
             Ok(stats) => stats,
             Err(e) => {
                 eprintln!("Error fetching last 30 days accuracy statistics: {}", e);
@@ -109,7 +127,7 @@ fn main() {
     };
 
     let total_accuracy_last_30_days = AccuracyRepository::new(analytics.conn)
-        .total_accuracy_last_30_days()
+        .total_accuracy_last_30_days(now)
         .unwrap_or((0, 0, 0.0));
     let total_accuracy_last_10_decks = AccuracyRepository::new(analytics.conn)
         .total_accuracy_last_10_decks()
@@ -117,11 +135,10 @@ fn main() {
 
     // Calculate consecutive days streak
     let consecutive_days_streak = StreakRepository::new(analytics.conn)
-        .calculate_consecutive_days()
+        .calculate_consecutive_days(now)
         .unwrap_or(0);
 
     // Get days with and without answers in the last 10 days
-    let now = Utc::now();
     let days_with_answers = StreakRepository::new(analytics.conn)
         .get_days_with_answers(now)
         .unwrap_or_default();

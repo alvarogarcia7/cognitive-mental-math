@@ -164,10 +164,9 @@ mod tests {
         let deck_id2 = Some(decks_repo.create().unwrap());
         answers_repo.insert(op_id, 5, true, 1.0, deck_id2).unwrap();
 
-        let now = Utc::now();
         let analytics = Analytics::new(&db.conn);
         let days_with_answers = StreakRepository::new(analytics.conn)
-            .get_days_with_answers(now)
+            .get_days_with_answers(current_time)
             .unwrap();
         assert_eq!(days_with_answers, vec!["2025-11-12"]);
     }
