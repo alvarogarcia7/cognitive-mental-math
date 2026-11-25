@@ -2,11 +2,11 @@ use memory_practice::database::{
     AnswersRepository, Database, DecksRepository, OperationsRepository,
 };
 use memory_practice::gui::{AppState, MemoryPracticeApp};
-use std::sync::Arc;
+use std::rc::Rc;
 
 #[test]
 fn test_app_initialization() {
-    let db = Arc::new(Database::new(":memory:").unwrap());
+    let db = Rc::new(Database::new(":memory:").unwrap());
     let mut app = MemoryPracticeApp::new(db.clone(), 10);
     app.start_new_block();
 
@@ -17,7 +17,7 @@ fn test_app_initialization() {
 
 #[test]
 fn test_answer_submission_flow() {
-    let db = Arc::new(Database::new(":memory:").unwrap());
+    let db = Rc::new(Database::new(":memory:").unwrap());
     let mut app = MemoryPracticeApp::new(db.clone(), 1);
     app.start_new_block();
 
@@ -41,7 +41,7 @@ fn test_answer_submission_flow() {
 
 #[test]
 fn test_complete_question_block() {
-    let db = Arc::new(Database::new(":memory:").unwrap());
+    let db = Rc::new(Database::new(":memory:").unwrap());
     let mut app = MemoryPracticeApp::new(db.clone(), 10);
     app.start_new_block();
 
@@ -62,7 +62,7 @@ fn test_complete_question_block() {
 
 #[test]
 fn test_empty_answer_not_submitted() {
-    let db = Arc::new(Database::new(":memory:").unwrap());
+    let db = Rc::new(Database::new(":memory:").unwrap());
     let mut app = MemoryPracticeApp::new(db.clone(), 10);
     app.start_new_block();
 
@@ -77,7 +77,7 @@ fn test_empty_answer_not_submitted() {
 
 #[test]
 fn test_invalid_answer_not_submitted() {
-    let db = Arc::new(Database::new(":memory:").unwrap());
+    let db = Rc::new(Database::new(":memory:").unwrap());
     let mut app = MemoryPracticeApp::new(db.clone(), 10);
     app.start_new_block();
 
@@ -92,7 +92,7 @@ fn test_invalid_answer_not_submitted() {
 
 #[test]
 fn test_results_contain_correct_data() {
-    let db = Arc::new(Database::new(":memory:").unwrap());
+    let db = Rc::new(Database::new(":memory:").unwrap());
     let mut app = MemoryPracticeApp::new(db.clone(), 10);
     app.start_new_block();
 
@@ -110,7 +110,7 @@ fn test_results_contain_correct_data() {
 
 #[test]
 fn test_multiple_answers_in_sequence() {
-    let db = Arc::new(Database::new(":memory:").unwrap());
+    let db = Rc::new(Database::new(":memory:").unwrap());
     let mut app = MemoryPracticeApp::new(db.clone(), 5);
     app.start_new_block();
 
@@ -129,7 +129,7 @@ fn test_multiple_answers_in_sequence() {
 
 #[test]
 fn test_correctness_tracking() {
-    let db = Arc::new(Database::new(":memory:").unwrap());
+    let db = Rc::new(Database::new(":memory:").unwrap());
     let mut app = MemoryPracticeApp::new(db.clone(), 10);
     app.start_new_block();
 
@@ -148,7 +148,7 @@ fn test_correctness_tracking() {
 
 #[test]
 fn test_state_transitions() {
-    let db = Arc::new(Database::new(":memory:").unwrap());
+    let db = Rc::new(Database::new(":memory:").unwrap());
     let mut app = MemoryPracticeApp::new(db.clone(), 10);
     app.start_new_block();
 
@@ -168,7 +168,7 @@ fn test_state_transitions() {
 
 #[test]
 fn test_database_persistence_across_submissions() {
-    let db = Arc::new(Database::new(":memory:").unwrap());
+    let db = Rc::new(Database::new(":memory:").unwrap());
     let mut app = MemoryPracticeApp::new(db.clone(), 3);
     app.start_new_block();
 
@@ -191,7 +191,7 @@ fn test_database_persistence_across_submissions() {
 
 #[test]
 fn test_timing_data_recorded() {
-    let db = Arc::new(Database::new(":memory:").unwrap());
+    let db = Rc::new(Database::new(":memory:").unwrap());
     let mut app = MemoryPracticeApp::new(db.clone(), 1);
     app.start_new_block();
 

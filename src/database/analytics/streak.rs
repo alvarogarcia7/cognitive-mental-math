@@ -13,8 +13,9 @@ impl<'a> StreakRepository<'a> {
     }
 
     /// Calculate the number of consecutive days the user has completed answers
+    /// `now` is the reference time used to decide whether the streak is still alive.
     /// Returns the streak count (0 if no answers exist)
-    pub fn calculate_consecutive_days(&self) -> Result<i32> {
+    pub fn calculate_consecutive_days(&self, now: DateTime<Utc>) -> Result<i32> {
         // Get all unique dates when answers were completed, ordered by date descending
         let mut stmt = self.conn.prepare(
             r#"SELECT DISTINCT DATE(a.created_at) as answer_date
@@ -35,8 +36,8 @@ impl<'a> StreakRepository<'a> {
         let mut current_date_idx = 0;
 
         // Get today's date and yesterday's date to handle cases where last activity wasn't today
-        let today = Utc::now().format("%Y-%m-%d").to_string();
-        let yesterday = (Utc::now() - chrono::Duration::days(1))
+        let today = now.format("%Y-%m-%d").to_string();
+        let yesterday = (now - chrono::Duration::days(1))
             .format("%Y-%m-%d")
             .to_string();
 
@@ -159,7 +160,7 @@ mod tests {
     fn test_consecutive_days_streak_no_answers() {
         let conn = create_test_db();
         let streak_repo = StreakRepository::new(&conn);
-        let streak = streak_repo.calculate_consecutive_days().unwrap();
+        let streak = streak_repo.calculate_consecutive_days(Utc::now()).unwrap();
         assert_eq!(streak, 0);
     }
 
@@ -167,7 +168,6 @@ mod tests {
     fn test_consecutive_days_streak_single_day() {
         let conn = create_test_db();
         let ops_repo = OperationsRepository::new(&conn);
-        // Use current date for this test since calculate_consecutive_days uses Utc::now() internally
         let fixed_date = Utc::now();
         let date_provider = Box::new(move || fixed_date);
         let answers_repo = AnswersRepository::new_with_date_provider(&conn, &*date_provider);
@@ -181,7 +181,7 @@ mod tests {
             .unwrap();
         decks_repo.complete(deck_id).unwrap();
 
-        let streak = streak_repo.calculate_consecutive_days().unwrap();
+        let streak = streak_repo.calculate_consecutive_days(fixed_date).unwrap();
         assert_eq!(streak, 1);
     }
 

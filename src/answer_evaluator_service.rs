@@ -1,4 +1,4 @@
-use crate::database::analytics::TimeStatisticsRepository;
+use crate::database::analytics::AnswerTimedEvaluatorRepository;
 use crate::spaced_repetition::AnswerTimedEvaluator;
 use rusqlite::Connection;
 
@@ -18,7 +18,7 @@ impl<'a> AnswerEvaluatorService<'a> {
     /// Retrieves historical timing statistics from the database for the operation type.
     /// Falls back to default values (average: 3.0s, stdev: 2.0s) if no historical data exists.
     pub fn get_evaluator(&self, operation_type: &str) -> AnswerTimedEvaluator {
-        TimeStatisticsRepository::new(self.conn)
+        AnswerTimedEvaluatorRepository::new(self.conn)
             .for_operation_type(operation_type)
             .ok()
             .flatten()
@@ -33,11 +33,11 @@ impl<'a> AnswerEvaluatorService<'a> {
 mod tests {
     use super::*;
     use crate::database::{AnswersRepository, Database, OperationsRepository};
-    use std::sync::Arc;
+    use std::rc::Rc;
 
     #[test]
     fn test_get_evaluator_with_historical_data() {
-        let db = Arc::new(Database::new(":memory:").unwrap());
+        let db = Rc::new(Database::new(":memory:").unwrap());
         let service = AnswerEvaluatorService::new(&db.conn);
 
         // Insert some operations and answers to create historical data
@@ -59,7 +59,7 @@ mod tests {
 
     #[test]
     fn test_get_evaluator_without_historical_data() {
-        let db = Arc::new(Database::new(":memory:").unwrap());
+        let db = Rc::new(Database::new(":memory:").unwrap());
         let service = AnswerEvaluatorService::new(&db.conn);
 
         let evaluator = service.get_evaluator("multiplication");
@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     fn test_get_evaluator_different_operation_types() {
-        let db = Arc::new(Database::new(":memory:").unwrap());
+        let db = Rc::new(Database::new(":memory:").unwrap());
         let service = AnswerEvaluatorService::new(&db.conn);
 
         // Test that different operation types can have different statistics
@@ -85,7 +85,7 @@ mod tests {
 
     #[test]
     fn test_get_evaluator_fallback_values() {
-        let db = Arc::new(Database::new(":memory:").unwrap());
+        let db = Rc::new(Database::new(":memory:").unwrap());
         let service = AnswerEvaluatorService::new(&db.conn);
 
         let evaluator = service.get_evaluator("division");

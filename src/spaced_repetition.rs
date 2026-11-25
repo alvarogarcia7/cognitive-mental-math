@@ -163,12 +163,13 @@ mod tests {
         assert!(matches!(quality, Quality::Grade3));
     }
 
+    // `default()` is intentional here: it exercises the `Default` impl itself.
+    #[allow(clippy::default_constructed_unit_structs)]
     #[test]
     fn test_review_scheduler_creation() {
         let _scheduler = ReviewScheduler::new();
         let _default_scheduler = ReviewScheduler::default();
-        // Just verify they can be created
-        assert!(true);
+        // Reaching this point without panicking verifies both constructors work.
     }
 
     #[test]
@@ -394,6 +395,8 @@ mod tests {
         assert_eq!(item1.interval, item2.interval);
     }
 
+    // `default()` is intentional here: the test asserts Default matches new().
+    #[allow(clippy::default_constructed_unit_structs)]
     #[test]
     fn test_review_scheduler_default_is_new() {
         let default_scheduler = ReviewScheduler::default();

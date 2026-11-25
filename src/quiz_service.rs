@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use log::info;
 use rusqlite::Connection;
 use sra::sm_2::Quality;
-use std::sync::Arc;
+use std::rc::Rc;
 
 /// Result of answering a single question
 #[derive(Debug, Clone)]
@@ -30,12 +30,12 @@ pub struct QuestionResult {
 /// Service layer for quiz operations, decoupled from GUI
 pub struct QuizService<'a> {
     conn: &'a Connection,
-    db: Arc<Database>,
+    db: Rc<Database>,
     evaluator_service: AnswerEvaluatorService<'a>,
 }
 
 impl<'a> QuizService<'a> {
-    pub fn new(conn: &'a Connection, db: Arc<Database>) -> Self {
+    pub fn new(conn: &'a Connection, db: Rc<Database>) -> Self {
         Self {
             conn,
             evaluator_service: AnswerEvaluatorService::new(conn),

@@ -5,11 +5,11 @@ use crate::time_format::format_time_difference;
 use chrono::Utc;
 use eframe::egui;
 use log::debug;
-use std::sync::Arc;
+use std::rc::Rc;
 use std::time::Instant;
 
 pub struct MemoryPracticeApp {
-    db: Arc<Database>,
+    db: Rc<Database>,
     questions: Vec<crate::operations::Operation>,
     current_question_index: usize,
     user_answers: Vec<String>,
@@ -27,7 +27,7 @@ pub enum AppState {
 }
 
 impl MemoryPracticeApp {
-    pub fn new(db: Arc<Database>, questions_per_block: usize) -> Self {
+    pub fn new(db: Rc<Database>, questions_per_block: usize) -> Self {
         Self {
             db,
             questions: Vec::new(),
@@ -320,7 +320,7 @@ impl eframe::App for MemoryPracticeApp {
     }
 }
 
-pub fn run_app(db: Arc<Database>, is_test_mode: bool) -> Result<(), eframe::Error> {
+pub fn run_app(db: Rc<Database>, is_test_mode: bool) -> Result<(), eframe::Error> {
     // In test mode, use 1 question per block; in production, use 10
     let questions_per_block = if is_test_mode { 1 } else { 10 };
 
@@ -349,7 +349,7 @@ mod tests {
 
     #[test]
     fn test_deck_abandoned_on_drop_during_questions() {
-        let db = Arc::new(Database::new(":memory:").unwrap());
+        let db = Rc::new(Database::new(":memory:").unwrap());
         {
             let mut app = MemoryPracticeApp::new(db.clone(), 10);
             app.start_new_block();
@@ -379,7 +379,7 @@ mod tests {
 
     #[test]
     fn test_completed_deck_not_abandoned_on_drop() {
-        let db = Arc::new(Database::new(":memory:").unwrap());
+        let db = Rc::new(Database::new(":memory:").unwrap());
         let deck_id = {
             let mut app = MemoryPracticeApp::new(db.clone(), 10);
             app.start_new_block();
@@ -407,7 +407,7 @@ mod tests {
 
     #[test]
     fn test_app_uses_correct_question_count() {
-        let db = Arc::new(Database::new(":memory:").unwrap());
+        let db = Rc::new(Database::new(":memory:").unwrap());
 
         // Test mode: 1 question per block
         let mut app_test = MemoryPracticeApp::new(db.clone(), 1);
@@ -426,7 +426,7 @@ mod tests {
 
     #[test]
     fn test_answers_not_written_immediately() {
-        let db = Arc::new(Database::new(":memory:").unwrap());
+        let db = Rc::new(Database::new(":memory:").unwrap());
         let mut app = MemoryPracticeApp::new(db.clone(), 2);
         app.start_new_block();
         let _deck_id = app.get_current_deck_id().expect("Deck should be created");
@@ -450,7 +450,7 @@ mod tests {
 
     #[test]
     fn test_answers_written_on_completion() {
-        let db = Arc::new(Database::new(":memory:").unwrap());
+        let db = Rc::new(Database::new(":memory:").unwrap());
         let mut app = MemoryPracticeApp::new(db.clone(), 1);
         app.start_new_block();
         let _deck_id = app.get_current_deck_id().expect("Deck should be created");
@@ -495,7 +495,7 @@ mod tests {
 
     #[test]
     fn test_answers_written_on_drop_abandoned() {
-        let db = Arc::new(Database::new(":memory:").unwrap());
+        let db = Rc::new(Database::new(":memory:").unwrap());
         {
             let mut app = MemoryPracticeApp::new(db.clone(), 2);
             app.start_new_block();
@@ -535,7 +535,7 @@ mod tests {
 
     #[test]
     fn test_multiple_answers_written_together() {
-        let db = Arc::new(Database::new(":memory:").unwrap());
+        let db = Rc::new(Database::new(":memory:").unwrap());
         let mut app = MemoryPracticeApp::new(db.clone(), 3);
         app.start_new_block();
 
@@ -560,7 +560,7 @@ mod tests {
             let answer = repo1
                 .get(answer_id)
                 .expect("Database access should succeed")
-                .expect(&format!("Answer {} should exist", i));
+                .unwrap_or_else(|| panic!("Answer {} should exist", i));
             assert!(answer.user_answer >= 0);
         }
     }

@@ -1,7 +1,7 @@
 use crate::deck::{Deck, DeckStatus, DeckSummary};
 use crate::row_factories::DeckRowFactory;
 use chrono::{DateTime, Utc};
-use rusqlite::{params, Connection, Result};
+use rusqlite::{Connection, Result, params};
 
 pub struct DecksRepository<'a> {
     conn: &'a Connection,
@@ -124,7 +124,7 @@ mod tests {
     #[test]
     fn test_create_deck() {
         let conn = create_test_db();
-        let repo = DecksRepository::new(&conn, Box::new(|| Utc::now()));
+        let repo = DecksRepository::new(&conn, Box::new(Utc::now));
         let deck_id = repo.create().unwrap();
         assert_eq!(deck_id, 1);
         assert_eq!(repo.count().unwrap(), 1);
@@ -185,7 +185,7 @@ mod tests {
     #[test]
     fn test_update_deck_summary() {
         let conn = create_test_db();
-        let repo = DecksRepository::new(&conn, Box::new(|| Utc::now()));
+        let repo = DecksRepository::new(&conn, Box::new(Utc::now));
         let deck_id = repo.create().unwrap();
 
         let summary = crate::deck::DeckSummary {

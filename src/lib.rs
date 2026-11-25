@@ -1,5 +1,3 @@
-#![feature(let_chains)]
-
 pub mod answer_evaluator_service;
 pub mod cli;
 pub mod database;

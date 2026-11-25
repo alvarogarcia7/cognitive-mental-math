@@ -83,8 +83,8 @@ check: fmt-check clippy test ## Run all checks
 .PHONY: check
 
 test-performance-stats:
-	cargo run --bin performance_stats -- data/sample.db > tests/actual/performance_stats_output_color.txt
-	NO_COLOR=1 cargo run --bin performance_stats -- data/sample.db > tests/actual/performance_stats_output_nocolor.txt
+	cargo run --bin performance_stats -- data/sample.db --override-date 2025-12-16 > tests/actual/performance_stats_output_color.txt
+	NO_COLOR=1 cargo run --bin performance_stats -- data/sample.db --override-date 2025-12-16 > tests/actual/performance_stats_output_nocolor.txt
 	diff -u tests/expected/performance_stats_output_color.txt tests/actual/performance_stats_output_color.txt
 	diff -u tests/expected/performance_stats_output_nocolor.txt tests/actual/performance_stats_output_nocolor.txt
 	echo "✅ Performance statistics test passed!"

@@ -1,12 +1,12 @@
 pub mod accuracy;
+pub mod answer_timed_evaluator;
 pub mod streak;
-pub mod time_statistics;
 
 use rusqlite::Connection;
 
 pub use accuracy::AccuracyRepository;
+pub use answer_timed_evaluator::AnswerTimedEvaluatorRepository;
 pub use streak::StreakRepository;
-pub use time_statistics::TimeStatisticsRepository;
 
 /// Analytics facade providing high-level analytics operations
 pub struct Analytics<'a> {

@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use rusqlite::{params, Connection, Result};
+use rusqlite::{Connection, Result, params};
 
 #[derive(Debug, PartialEq)]
 pub struct AnswerRecord {

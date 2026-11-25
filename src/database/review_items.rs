@@ -3,7 +3,7 @@ use crate::spaced_repetition::ReviewItem;
 use crate::time_format::format_time_difference;
 use chrono::{DateTime, Utc};
 use log::debug;
-use rusqlite::{params, Connection, Result};
+use rusqlite::{Connection, Result, params};
 
 pub struct ReviewItemsRepository<'a> {
     conn: &'a Connection,
