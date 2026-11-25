@@ -5,6 +5,8 @@ on:
     branches: [ master, main ]
   pull_request:
     branches: [ master, main ]
+  # Lets release.yml run this pipeline on a tagged commit before building binaries.
+  workflow_call:
 
 env:
   CARGO_TERM_COLOR: always
@@ -58,8 +60,6 @@ jobs:
 
     - name: Check formatting
       run: make fmt-check
-      continue-on-error: true
 
     - name: Run clippy
       run: make clippy
-      continue-on-error: true

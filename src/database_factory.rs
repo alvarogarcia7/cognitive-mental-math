@@ -243,14 +243,16 @@ mod tests {
 
     #[test]
     fn test_create_with_builder() {
-        let config = DatabaseConfig::builder().build();
+        // Test mode keeps this on an in-memory DB; the default would write memory_practice.db
+        let config = DatabaseConfig::builder().test_mode().build();
         let db = DatabaseFactory::create(config);
         assert!(db.is_ok());
     }
 
     #[test]
     fn test_create_with_memory_database() {
-        let config = DatabaseConfig::builder().build();
+        // Test mode keeps this on an in-memory DB; the default would write memory_practice.db
+        let config = DatabaseConfig::builder().test_mode().build();
         let db = DatabaseFactory::create(config).expect("Failed to create in-memory database");
         // Verify the database works by executing a simple query
         let repo = OperationsRepository::new(&db.conn);

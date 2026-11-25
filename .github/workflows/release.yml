@@ -1,0 +1,158 @@
+name: Binary Releases
+
+# Builds the Rust binaries and publishes them as GitHub Releases.
+#
+# - Runs only when a tag is pushed, on any branch.
+# - First runs the normal CI pipeline (ci.yml: build, tests, fmt, clippy) on the
+#   tagged commit. Binaries are only built if that pipeline is green.
+# - Builds only linux-amd64 and mac-arm64 (the mac runner is expensive, so it
+#   runs only once per tag, after CI passes).
+# - Smoke-tests each binary on its runner before publishing.
+# - The tag gets its own release (e.g. v1.2.3 or v1.2.3-rc1) with the archives.
+# - Tags containing a hyphen (e.g. -rc1) are published as pre-releases and do
+#   not move `latest`.
+# - For a non-prerelease tag on master, the `latest` release is re-pointed at
+#   that commit and its archives are replaced.
+# - Archives use version-less names (memory-practice-<target>.tar.gz), so the
+#   URL https://github.com/<owner>/<repo>/releases/download/latest/<file>
+#   stays valid across releases.
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+env:
+  BINARIES: memory_practice performance_stats sm2_scheduler
+
+jobs:
+  ci:
+    name: Normal pipeline (CI)
+    # The `latest` tag is created by this workflow itself; never rebuild for it.
+    if: github.ref_name != 'latest'
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build (${{ matrix.target }})
+    needs: ci
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-amd64
+          - os: macos-latest
+            target: mac-arm64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install system dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-3-dev libx11-dev libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+
+    - name: Build release binaries
+      run: cargo build --release --locked --bins --verbose
+
+    - name: Smoke test binaries
+      shell: bash
+      run: |
+        set -euo pipefail
+        for bin in ${BINARIES}; do
+          test -x "target/release/${bin}"
+          "target/release/${bin}" --help > /dev/null
+        done
+        # Functional checks that do not need a display or user input
+        target/release/sm2_scheduler 3 1 2.5 | grep -q "SM-2 Scheduling Results"
+        DB="$RUNNER_TEMP/smoke.db"
+        target/release/performance_stats "$DB" | grep -q "No operation types found"
+
+    - name: Package binaries
+      shell: bash
+      env:
+        TARGET: ${{ matrix.target }}
+      run: |
+        set -euo pipefail
+        STAGE="stage/memory-practice-${TARGET}"
+        mkdir -p "${STAGE}" dist
+        for bin in ${BINARIES}; do
+          cp "target/release/${bin}" "${STAGE}/"
+        done
+        tar -C stage -czf "dist/memory-practice-${TARGET}.tar.gz" "memory-practice-${TARGET}"
+        ls -l dist
+
+    - name: Upload archive
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-${{ matrix.target }}
+        path: dist/*
+        if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+    steps:
+    - name: Checkout code (full history for branch ancestry check)
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Download archives
+      uses: actions/download-artifact@v4
+      with:
+        pattern: release-*
+        path: dist
+        merge-multiple: true
+
+    - name: Generate checksums
+      working-directory: dist
+      run: sha256sum memory-practice-*.tar.gz > SHA256SUMS.txt
+
+    - name: Create or update the tag's release
+      run: |
+        set -euo pipefail
+        PRERELEASE=()
+        if [[ "${TAG}" == *-* ]]; then PRERELEASE=(--prerelease); fi
+        if gh release view "${TAG}" >/dev/null 2>&1; then
+          gh release upload "${TAG}" dist/* --clobber
+        else
+          gh release create "${TAG}" dist/* --title "${TAG}" --generate-notes --verify-tag "${PRERELEASE[@]}"
+        fi
+
+    - name: Point 'latest' at this tag when it is a release from master
+      run: |
+        set -euo pipefail
+        if [[ "${TAG}" == *-* ]]; then
+          echo "Tag ${TAG} is a pre-release; 'latest' is not changed."
+          exit 0
+        fi
+        git fetch --no-tags origin +refs/heads/master:refs/remotes/origin/master
+        if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/master; then
+          echo "Tag ${TAG} (${GITHUB_SHA}) is not on master; 'latest' is not changed."
+          exit 0
+        fi
+
+        # Replace the 'latest' release. --cleanup-tag also removes the git tag,
+        # which is recreated below at this tag's commit.
+        if gh release view latest >/dev/null 2>&1; then
+          gh release delete latest --yes --cleanup-tag
+        fi
+        gh release create latest dist/* \
+          --target "${GITHUB_SHA}" \
+          --title "latest (${TAG})" \
+          --notes "Binaries built from master at tag \`${TAG}\` (commit \`${GITHUB_SHA}\`)." \
+          --latest

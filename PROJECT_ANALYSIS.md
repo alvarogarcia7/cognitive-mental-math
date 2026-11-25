@@ -228,18 +228,18 @@ mod state_transitions {
 // benches/database_benchmarks.rs
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-fn benchmark_time_statistics(c: &mut Criterion) {
+fn benchmark_answer_timed_evaluator(c: &mut Criterion) {
     let db = setup_db_with_1000_answers();
-    c.bench_function("time_statistics_all_operations", |b| {
+    c.bench_function("answer_timed_evaluator_all_operations", |b| {
         b.iter(|| {
-            TimeStatisticsRepository::new(&db.conn)
+            AnswerTimedEvaluatorRepository::new(&db.conn)
                 .all_operations()
                 .unwrap()
         })
     });
 }
 
-criterion_group!(benches, benchmark_time_statistics);
+criterion_group!(benches, benchmark_answer_timed_evaluator);
 criterion_main!(benches);
 ```
 
