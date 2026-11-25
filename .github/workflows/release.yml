@@ -1,0 +1,202 @@
+name: Binary Releases
+
+# Builds the Rust binaries and publishes them as GitHub Releases.
+#
+# - Runs only when a tag is pushed, on any branch.
+# - First runs the normal CI pipeline (ci.yml: build, tests, fmt, clippy) on the
+#   tagged commit. Binaries are only built if that pipeline is green.
+# - Builds linux-amd64 and mac-arm64 natively on their own runners. The mac runner
+#   is expensive, so it runs only once per tag, after CI passes.
+# - Binaries are detected from the workspace metadata, so a new bin is picked up
+#   automatically. Bins that need cargo features are skipped.
+# - Smoke-tests each binary on its runner before publishing.
+# - Publishes only when both platform archives are present.
+# - The tag gets its own release (e.g. v1.2.3 or v1.2.3-rc1) with the archives.
+# - Tags containing a hyphen (e.g. -rc1) are published as pre-releases and do
+#   not move `latest`.
+# - For a non-prerelease tag on master, the `latest` release is re-pointed at
+#   that commit and its archives are replaced.
+# - Archives use version-less names (memory-practice-<label>.tar.gz), so the
+#   URL https://github.com/<owner>/<repo>/releases/download/latest/<file>
+#   stays valid across releases.
+#
+# All actions are pinned to commit SHAs and the Rust toolchain is pinned, so a
+# moved tag or a newer compiler cannot change what a release is built with.
+
+on:
+  push:
+    tags:
+      - '*'
+
+# Read-only by default. Only the publish job can write to the repository.
+permissions:
+  contents: read
+
+env:
+  RUST_TOOLCHAIN: "1.95"
+
+jobs:
+  ci:
+    name: Normal pipeline (CI)
+    # The `latest` tag is created by this workflow itself; never rebuild for it.
+    if: github.ref_name != 'latest'
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build ${{ matrix.label }}
+    needs: ci
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - label: linux-amd64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - label: mac-arm64
+            runner: macos-latest
+            target: aarch64-apple-darwin
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      with:
+        toolchain: ${{ env.RUST_TOOLCHAIN }}
+        targets: ${{ matrix.target }}
+
+    - name: Install system dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-3-dev libx11-dev libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+
+    - name: Detect release binaries
+      id: bins
+      run: |
+        bins=$(cargo metadata --format-version 1 --no-deps | jq -r '[.packages[].targets[] | select((.kind | index("bin")) and ((.["required-features"] // []) | length == 0)) | .name] | unique | join(" ")')
+        echo "Detected release binaries -- $bins"
+        echo "bins=$bins" >> "$GITHUB_OUTPUT"
+
+    - name: Build release binaries
+      run: cargo build --release --locked --workspace --bins --target "${{ matrix.target }}"
+
+    - name: Smoke test binaries
+      shell: bash
+      env:
+        BINS: ${{ steps.bins.outputs.bins }}
+        BIN_DIR: target/${{ matrix.target }}/release
+      run: |
+        set -euo pipefail
+        for bin in ${BINS}; do
+          test -x "${BIN_DIR}/${bin}"
+          "${BIN_DIR}/${bin}" --help > /dev/null
+        done
+        # Functional checks that do not need a display or user input
+        "${BIN_DIR}/sm2_scheduler" 3 1 2.5 | grep -q "SM-2 Scheduling Results"
+        DB="$RUNNER_TEMP/smoke.db"
+        "${BIN_DIR}/performance_stats" "$DB" | grep -q "No operation types found"
+
+    - name: Package binaries
+      shell: bash
+      env:
+        LABEL: ${{ matrix.label }}
+        TARGET: ${{ matrix.target }}
+        BINS: ${{ steps.bins.outputs.bins }}
+      run: |
+        set -euo pipefail
+        STAGE="stage/memory-practice-${LABEL}"
+        mkdir -p "${STAGE}" dist
+        for bin in ${BINS}; do
+          cp "target/${TARGET}/release/${bin}" "${STAGE}/"
+        done
+        # macOS: ship the quarantine remover next to the binaries
+        # (files downloaded through a browser get com.apple.quarantine)
+        if [[ "${LABEL}" == mac-* ]]; then
+          cp scripts/remove-quarantine.sh "${STAGE}/"
+        fi
+        tar -C stage -czf "dist/memory-practice-${LABEL}.tar.gz" "memory-practice-${LABEL}"
+        ls -l dist
+
+    - name: Upload archive
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: release-${{ matrix.label }}
+        path: dist/*
+        if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    # Write access is granted to this job only.
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+    steps:
+    - name: Checkout code (full history for branch ancestry check)
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        fetch-depth: 0
+
+    - name: Download archives
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        pattern: release-*
+        path: dist
+        merge-multiple: true
+
+    - name: Check archives
+      run: |
+        set -euo pipefail
+        ls -la dist/
+        # One archive per build job. Stop before publishing if one is missing.
+        expected=2
+        count=$(ls dist/memory-practice-*.tar.gz | wc -l | tr -d ' ')
+        if [ "$count" -ne "$expected" ]; then
+          echo "Expected ${expected} archives, found ${count}"
+          exit 1
+        fi
+
+    - name: Generate checksums
+      working-directory: dist
+      run: sha256sum memory-practice-*.tar.gz > SHA256SUMS.txt
+
+    - name: Create or update the tag's release
+      run: |
+        set -euo pipefail
+        PRERELEASE=()
+        if [[ "${TAG}" == *-* ]]; then PRERELEASE=(--prerelease); fi
+        if gh release view "${TAG}" >/dev/null 2>&1; then
+          gh release upload "${TAG}" dist/* --clobber
+        else
+          gh release create "${TAG}" dist/* --title "${TAG}" --generate-notes --verify-tag "${PRERELEASE[@]}"
+        fi
+
+    - name: Point 'latest' at this tag when it is a release from master
+      run: |
+        set -euo pipefail
+        if [[ "${TAG}" == *-* ]]; then
+          echo "Tag ${TAG} is a pre-release; 'latest' is not changed."
+          exit 0
+        fi
+        git fetch --no-tags origin +refs/heads/master:refs/remotes/origin/master
+        if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/master; then
+          echo "Tag ${TAG} (${GITHUB_SHA}) is not on master; 'latest' is not changed."
+          exit 0
+        fi
+
+        # Replace the 'latest' release. --cleanup-tag also removes the git tag,
+        # which is recreated below at this tag's commit.
+        if gh release view latest >/dev/null 2>&1; then
+          gh release delete latest --yes --cleanup-tag
+        fi
+        gh release create latest dist/* \
+          --target "${GITHUB_SHA}" \
+          --title "latest (${TAG})" \
+          --notes "Binaries built from master at tag \`${TAG}\` (commit \`${GITHUB_SHA}\`)." \
+          --latest
