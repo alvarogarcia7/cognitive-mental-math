@@ -65,7 +65,25 @@ fn main() {
         }
     };
 
-    if global_stats.is_empty() {
+    // Accuracy counts every answer, so it knows about operation types even when
+    // none of their answers are correct (time statistics only cover correct answers).
+    let global_accuracy_stats = match AccuracyRepository::new(analytics.conn).all_operations() {
+        Ok(stats) => stats,
+        Err(e) => {
+            eprintln!("Error fetching global accuracy statistics: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let mut operation_types: Vec<String> = global_stats
+        .keys()
+        .chain(global_accuracy_stats.keys())
+        .cloned()
+        .collect();
+    operation_types.sort();
+    operation_types.dedup();
+
+    if operation_types.is_empty() {
         println!("No operation types found in the database.");
         return;
     }
@@ -88,15 +106,6 @@ fn main() {
                 std::process::exit(1);
             }
         };
-
-    // Fetch accuracy statistics
-    let global_accuracy_stats = match AccuracyRepository::new(analytics.conn).all_operations() {
-        Ok(stats) => stats,
-        Err(e) => {
-            eprintln!("Error fetching global accuracy statistics: {}", e);
-            std::process::exit(1);
-        }
-    };
 
     let last_30_days_accuracy_stats =
         match AccuracyRepository::new(analytics.conn).all_operations_last_30_days(now) {
@@ -179,9 +188,6 @@ fn main() {
     println!();
 
     // Iterate through all operation types (sorted for consistent output)
-    let mut operation_types: Vec<_> = global_stats.keys().cloned().collect();
-    operation_types.sort();
-
     for op_type in operation_types {
         let op_label = if use_color {
             format!("Operation Type: {}", op_type.magenta().bold())
